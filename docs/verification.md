@@ -1,6 +1,8 @@
 # Verification status
 
 This page separates checks of the package from desktop-specific input tests.
+The GitHub Actions workflow is included, but hosted jobs did not execute for
+the first release. The verification results below were obtained locally.
 
 ## Verified locally
 
