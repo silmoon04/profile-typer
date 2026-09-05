@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Profile Typer
+Comment=Type descriptions from an editable JSON queue
+Exec=profile-typer %f
+Icon=profile-typer
+Terminal=false
+Categories=Utility;Qt;
+StartupNotify=true
+MimeType=application/json;

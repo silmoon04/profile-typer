@@ -1,0 +1,14 @@
+[
+  {
+    "title": "hello",
+    "description": "text to type out"
+  },
+  {
+    "title": "Two paragraphs",
+    "description": "This is the first paragraph.\n\nThis is the second paragraph."
+  },
+  {
+    "title": "Unicode example",
+    "description": "Café, résumé, and a friendly hello 👋"
+  }
+]
