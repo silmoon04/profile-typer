@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from profile_typer.typing_backends import PreviewTypingBackend, default_backend
 from profile_typer.typing_document import TypingDocument
 from profile_typer.typing_queue import load_queue
+from profile_typer.profiles import recorded_profile
 from profile_typer.typing_session import Phase, TypingSession, TypingSettings
 from .model import QueueModel
 from .dialogs import PasteJsonDialog
@@ -80,6 +81,7 @@ class TyperWindow(QMainWindow):
         menu.addAction("JSON format", self.show_format)
         menu.addSeparator()
         menu.addAction("Diagnostics", self.show_diagnostics)
+        menu.addAction("Use recorded profile defaults", self._use_recorded_defaults)
         if isinstance(self.backend, PreviewTypingBackend):
             menu.addAction("Preview output", lambda: self._show_text("Preview output", self.backend.output))
         more.setMenu(menu)
@@ -261,11 +263,17 @@ class TyperWindow(QMainWindow):
         body = QWidget()
         layout = QVBoxLayout(body)
         layout.setContentsMargins(6, 8, 10, 8)
+        profile = recorded_profile()
+        summary = profile.timing["summary"]
+        label = QLabel(f"Profile: {profile.name}\n{summary['interval_samples']:,} intervals · "
+                       f"{summary['digraphs_modelled']} key pairs · {summary['dwell_samples']:,} hold times")
+        label.setWordWrap(True)
+        layout.addWidget(label)
         self.spins = {}
         for name, label, low, high, step, value in (
-            ("wpm", "Speed (WPM)", 15, 120, 0.5, 100),
+            ("wpm", "Speed (WPM)", 15, 120, 0.5, profile.natural_wpm),
             ("delay", "Start delay (seconds)", 0, 60, 0.5, 3),
-            ("corrections", "Corrections (0–2×)", 0, 2, 0.05, 0),
+            ("corrections", "Corrections (0–2×)", 0, 2, 0.05, 1),
             ("variation", "Variation (%)", 0, 150, 1, 100),
         ):
             spin = PreciseSpinBox()
@@ -280,7 +288,8 @@ class TyperWindow(QMainWindow):
             self.edit_controls.append(spin)
             spin.setAccessibleName(label)
             spin.setToolTip(label)
-        help_text = QLabel("Corrections: 0 = off, 0.5 = low, 1 = normal, 1.6 = high.")
+        help_text = QLabel(f"Corrections: 1× uses the recorded rate ({profile.mistakes.correction_runs_per_character:.1%} correction runs per character). "
+                          "0 disables corrections. Variation 100% uses the measured timing spread.")
         help_text.setWordWrap(True)
         layout.addWidget(help_text)
         self.advance_check = QCheckBox("Select the next item when done")
@@ -328,6 +337,7 @@ class TyperWindow(QMainWindow):
             for name, spin in self.spins.items():
                 self.preferences.setValue(name, spin.value())
             self.preferences.setValue("advance", self.advance_check.isChecked())
+            self.preferences.setValue("cadence_profile_id", recorded_profile().id)
 
     def _set_topmost(self, checked):
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, checked)
@@ -336,14 +346,31 @@ class TyperWindow(QMainWindow):
     def _restore_preferences(self):
         if self.preferences is None:
             return
+        profile = recorded_profile()
+        legacy = self.preferences.value("cadence_profile_id") != profile.id
         values = {name: self.preferences.value(name, spin.value()) for name, spin in self.spins.items()}
+        if legacy:
+            values.update(wpm=profile.natural_wpm, corrections=1, variation=100)
         advance = self.preferences.value("advance", True, type=bool)
+        blockers = [QSignalBlocker(widget) for widget in (*self.spins.values(), self.advance_check)]
         for name, value in values.items():
             try:
                 self.spins[name].setValue(float(value))
             except (TypeError, ValueError):
                 pass
         self.advance_check.setChecked(advance)
+        del blockers
+        self._settings_changed()
+        if legacy:
+            self._set_status("Using silmoon04's recorded profile. Corrections are now set to the recorded rate (1×).")
+
+    def _use_recorded_defaults(self):
+        if self.session.busy:
+            return
+        self.spins["wpm"].setValue(recorded_profile().natural_wpm)
+        self.spins["corrections"].setValue(1)
+        self.spins["variation"].setValue(100)
+        self._set_status("Restored silmoon04's recorded timing and correction defaults.")
 
     def _set_status(self, message):
         self.session.message = message
@@ -380,7 +407,7 @@ class TyperWindow(QMainWindow):
                 button.setEnabled(not busy and self.document.selected_index < len(self.document.entries) - 1)
             self.position_label.setText(f"{self.document.selected_index + 1} / {len(self.document.entries)}")
             text = entry.description
-            stats = f"{len(text):,} characters · {len(text.split()):,} words · ~{len(text) * 12 / self.spins['wpm'].value():.0f}s"
+            stats = f"silmoon04 · {len(text):,} characters · {len(text.split()):,} words"
             self.stats_label.setText(stats)
             self.stats_label.setToolTip(stats)
             filename = self.document.path.name if self.document.path else "Unsaved queue"
@@ -570,6 +597,8 @@ class TyperWindow(QMainWindow):
         import platform
         import PySide6
         text = (f"Python {platform.python_version()} | PySide6 {PySide6.__version__}\n"
+                f"Profile: {recorded_profile().name} ({recorded_profile().id})\n"
+                f"Recorded samples: {json.dumps(recorded_profile().timing['summary'])}\n"
                 f"Backend: {type(self.backend).__name__}\nWindow: {self.width()} × {self.height()}\n"
                 f"Settings: {json.dumps(asdict(self._settings()))}\n\n{self.session.message}\n\n"
                 + "\n".join(self.session.history) + "\n\n" + self.session.details)

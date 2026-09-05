@@ -4,6 +4,10 @@ A desktop queue for typing descriptions into other applications. Import a JSON
 file or paste JSON, browse items by title, edit their descriptions, and send the
 selected description at a chosen pace.
 
+The app ships **silmoon04's recorded typing profile**: key-pair timing, hold
+times, burst/pause patterns, word-specific mistakes, and backspace corrections.
+Every platform loads the same bundled aggregate profile.
+
 The app uses Python and Qt Widgets. It includes search, Back/Next navigation,
 queue editing, a countdown, precise WPM controls, cancellation, and a preview
 mode that never sends input to another application.
@@ -15,7 +19,7 @@ mode that never sends input to another application.
 Download the `.deb` from the [releases page](https://github.com/silmoon04/profile-typer/releases), then install it:
 
 ```sh
-sudo apt install ./profile-typer_0.1.0_all.deb
+sudo apt install ./profile-typer_0.2.0_all.deb
 profile-typer
 ```
 
@@ -28,7 +32,7 @@ RemoteDesktop permission portal.
 Install the wheel from the releases page with Python 3.11 or newer:
 
 ```sh
-python -m pip install ./profile_typer-0.1.0-py3-none-any.whl
+python -m pip install ./profile_typer-0.2.0-py3-none-any.whl
 profile-typer
 ```
 
@@ -61,10 +65,22 @@ Choose **Open** for a file or **Paste JSON** to paste an object or array. Both
 Paste can replace or append to the queue, and invalid input leaves existing
 items intact. Save exports the edited titles and descriptions.
 
-WPM, delay, corrections, and variation are on the main page. Corrections are
-optional, immediately corrected ASCII mistakes; 0 turns them off. Timing is
-generic and contains no recorded typing profiles. Windows open within a
-connected display, and narrow layouts keep the typing controls visible.
+WPM, delay, corrections, and variation are on the main page. Defaults use the
+recorded profile: **81.6 WPM reference pace, corrections 1×, variation 100%**.
+WPM rescales the measured intervals; net WPM varies with bursts and correction
+pauses. Corrections can backtrack through a word, with measured delays before
+deleting and resuming. Set corrections to 0 to disable them explicitly.
+See [the bundled profile](docs/recorded-profile.md) for its data and behavior.
+
+Version 0.1.0 incorrectly replaced the recorded model with generic timing and
+disabled corrections. Upgrading to 0.2.0 resets those old model defaults once,
+while preserving the start delay and advance option. Later changes, including
+explicitly disabling corrections, are remembered. **More > Use recorded profile
+defaults** restores the measured defaults at any time.
+
+Windows open within a connected display, and narrow layouts keep the typing
+controls visible. The profile name is visible below the description and its
+sample counts are shown in Settings and Diagnostics.
 
 Select a destination, click **Type description**, and focus the exact input
 field during the countdown. Each queue item starts manually. A stopped item
@@ -76,7 +92,8 @@ profile-typer --dry-run --no-settings
 profile-typer path/to/queue.json
 ```
 
-Preview output is available under **More > Preview output**. Diagnostics show
+Preview also runs the recorded timing and correction engine, without sending
+keys to another application. Preview output is available under **More > Preview output**. Diagnostics show
 the selected backend, settings, transitions, and the last error traceback.
 
 ## Desktop support

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import math
 import shutil
 import subprocess
 
@@ -100,18 +101,26 @@ class X11Port:
     def cancelled(self):
         return self.display is not None and (_escape(self.display) or active_window(self.display) != self.target)
 
-    def insert(self, character):
-        if character == "\n":
-            self._run("key", "--delay", "0", "Return")
-        elif character == "\t":
-            self._run("key", "--delay", "0", "Tab")
-        else:
-            # Text goes over stdin, never into shell syntax or process arguments.
-            # Let applications process temporary Unicode key mappings before xdotool restores them.
-            self._run("type", "--delay", "12", "--file", "-", text=character)
+    def _press(self, symbol, dwell_ms):
+        # Only generated keysym names and numeric durations enter this command stream.
+        # The input description never becomes command syntax or process arguments.
+        script = f"keydown --delay 0 {symbol}\nsleep {max(8, dwell_ms) / 1000:.6f}\nkeyup --delay 0 {symbol}\n"
+        try:
+            self._run("-", text=script)
+        except Exception:
+            self._run("-", text=f"keyup --delay 0 {symbol}\n")
+            raise
 
-    def backspace(self):
-        self._run("key", "--delay", "0", "BackSpace")
+    def insert(self, character, *, dwell_ms=0, stop=None):
+        if not character.isascii():
+            # xdotool's text path keeps temporary Unicode mappings valid while held.
+            self._run("type", "--delay", str(max(12, math.ceil(dwell_ms * 2))), "--file", "-", text=character)
+            return
+        symbol = {"\n": "Return", "\t": "Tab"}.get(character, f"U{ord(character):04X}")
+        self._press(symbol, dwell_ms)
+
+    def backspace(self, *, dwell_ms=0, stop=None):
+        self._press("BackSpace", dwell_ms)
 
     def close(self):
         if self.display is not None:

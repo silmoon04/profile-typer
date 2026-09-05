@@ -1,4 +1,4 @@
-"""Portable, cancellable text replay using generic timing parameters."""
+"""Portable replay of the bundled recorded cadence and correction model."""
 from __future__ import annotations
 
 import random
@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from .typing_session import TypingSettings
+from .profiles import recorded_profile
+from .cadence import build_edit_plan, character_timing, replay_edit_plan
 
 
 @dataclass(frozen=True)
@@ -23,13 +25,14 @@ class TypeResult:
     corrections: int
     net_wpm: float
     typed_seconds: float
+    profile_id: str
 
 
 class InputPort(Protocol):
     def prepare(self, target: int | None) -> None: ...
     def cancelled(self) -> bool: ...
-    def insert(self, character: str) -> None: ...
-    def backspace(self) -> None: ...
+    def insert(self, character: str, *, dwell_ms: float, stop) -> None: ...
+    def backspace(self, *, dwell_ms: float, stop) -> None: ...
     def close(self) -> None: ...
 
 
@@ -43,8 +46,16 @@ def replay(text: str, port: InputPort, settings: TypingSettings, stop, progress:
     if any(ord(character) < 32 and character not in "\n\t" for character in text):
         raise ValueError("Descriptions may contain tabs and newlines, but no other control characters.")
     randomizer = rng or random.Random()
+    profile = recorded_profile()
+    plan = build_edit_plan(text, randomizer, correction_amount=settings.corrections, profile=profile.mistakes)
+    if replay_edit_plan(plan) != text:
+        raise ValueError("The correction plan did not reproduce the description.")
+    pace = settings.wpm / profile.natural_wpm
     started = clock()
-    sent = corrections = committed = 0
+    sent = corrections = 0
+    committed: list[str] = []
+    previous_character = None
+    previous_interval = None
     cancelled = False
 
     def stopped():
@@ -66,31 +77,40 @@ def replay(text: str, port: InputPort, settings: TypingSettings, stop, progress:
             cancelled = True
         else:
             port.prepare(target)
-        for character in text:
+        for index, action in enumerate(plan):
             if cancelled or stopped():
                 break
-            # Optional, immediately corrected ASCII mistakes; no captured profiles.
-            if character.isascii() and character.isalpha() and randomizer.random() < settings.corrections * 0.02:
-                typo = "x" if character.lower() != "x" else "z"
-                port.insert(typo)
-                sent += 1
-                if not wait(0.06):
+            action_started = clock()
+            if action.kind == "pause":
+                # Preserve the recorded detection/restart pause shape while rescaling pace.
+                if not wait(action.delay_ms / pace / 1000):
                     break
-                port.backspace()
+            else:
+                character = action.character if action.kind == "insert" else "\b"
+                timing = character_timing("profile", index, previous_character, character, None,
+                                          randomizer, previous_interval, profile.timing,
+                                          speed=1, variation=settings.variation / 100)
+                previous_interval = timing.rhythm_interval_ms
+                dwell = min(450.0, max(8.0, timing.dwell_ms / pace))
+                if action.kind == "insert":
+                    port.insert(character, dwell_ms=dwell, stop=stop)
+                    committed.append(character)
+                else:
+                    port.backspace(dwell_ms=dwell, stop=stop)
+                    corrections += 1
+                    if committed:
+                        committed.pop()
                 sent += 1
-                corrections += 1
-                if stopped():
+                previous_character = character
+                elapsed_action = clock() - action_started
+                if not wait(max(0, timing.interval_ms / pace / 1000 - elapsed_action)):
                     break
-            port.insert(character)
-            sent += 1
-            committed += 1
             elapsed = max(clock() - started, 0.001)
-            progress(committed, len(text), committed * 12 / elapsed, corrections)
-            base_interval = 12 / settings.wpm
-            interval = base_interval * (1 + randomizer.uniform(-0.35, 0.35) * settings.variation / 100)
-            if not wait(interval):
-                break
+            progress(index + 1, len(plan), len(committed) * 12 / elapsed, corrections)
         elapsed = max(clock() - started, 0.001)
-        return TypeResult(cancelled, sent, corrections, round(committed * 12 / elapsed, 1), round(elapsed, 2))
+        cancelled = cancelled or stopped()
+        if not cancelled and "".join(committed) != text:
+            raise ValueError("The replay did not reproduce the description.")
+        return TypeResult(cancelled, sent, corrections, round(len(committed) * 12 / elapsed, 1), round(elapsed, 2), profile.id)
     finally:
         port.close()

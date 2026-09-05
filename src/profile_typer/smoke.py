@@ -28,6 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     from profile_typer.qt_typer.window import TyperWindow, configure_application
     from profile_typer.typing_backends import PreviewTypingBackend
     from profile_typer.typing_document import TypingDocument
+    from profile_typer.profiles import recorded_profile
     from profile_typer.typing_session import Phase
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -35,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_application(app)
     document = TypingDocument()
     document.load(Path(__file__).resolve().parent / "examples" / "typing-queue.json")
-    backend = PreviewTypingBackend()
+    backend = PreviewTypingBackend(speedup=50)
     window = TyperWindow(document=document, backend=backend)
     window.show()
     measurements = []
@@ -98,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
             assert window.width() <= available.width() / 2 + 20, "Windows snap did not reduce the width"
             check("windows-snap", 0)
         report = {"passed": True, "qt_version": PySide6.__version__, "preview_exact_match": True,
+                  "profile_id": recorded_profile().id, "profile_samples": dict(recorded_profile().timing["summary"]),
                   "cases": measurements, "state_history": list(window.session.history)}
         (args.output / "result.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report))

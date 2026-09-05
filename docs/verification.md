@@ -12,6 +12,9 @@ the first release. The verification results below were obtained locally.
 - X11: real XTEST input into a separate Qt process inside Xvfb with Openbox.
   The received text matches accents, emoji, tabs, multiple lines, and trailing
   blank lines exactly. Cancellation stops before remaining characters.
+- The recorded aggregate is verified by SHA-256 and sample counts. The Linux
+  input test also observes a recorded word error and its backspace correction
+  in the receiver, rather than checking only the final text.
 - The `.deb` builds without root, installs with apt, and its installed smoke
   command runs from outside the source tree with `PYTHONPATH` removed.
 - The wheel and source archive build successfully. Screenshots cover wide,

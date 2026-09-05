@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 import sys
 import time
-from types import SimpleNamespace
 
 from .engine import replay
 
@@ -44,8 +43,9 @@ class X11TypingBackend:
 class PreviewTypingBackend:
     desktop_note = "Preview mode: no input is sent to other applications."
 
-    def __init__(self):
+    def __init__(self, *, speedup=1.0):
         self.output = ""
+        self.speedup = max(1.0, float(speedup))
 
     def targets(self):
         return []
@@ -55,14 +55,35 @@ class PreviewTypingBackend:
 
     def type(self, text, target, settings, stop, progress):
         self.output = ""
-        started = time.monotonic()
-        for character in text:
-            if stop.wait(0.01):
-                break
-            self.output += character
-            progress(len(self.output), len(text), settings.wpm, 0)
-        return SimpleNamespace(cancelled=stop.is_set(), keystrokes=len(self.output), net_wpm=settings.wpm,
-                               typed_seconds=round(time.monotonic() - started, 2))
+        backend = self
+
+        class ScaledStop:
+            def is_set(self):
+                return stop.is_set()
+
+            def wait(self, seconds):
+                return stop.wait(seconds / backend.speedup)
+
+        class PreviewPort:
+            def prepare(self, _target):
+                pass
+
+            def cancelled(self):
+                return False
+
+            def insert(self, character, *, dwell_ms, stop):
+                backend.output += character
+                stop.wait(dwell_ms / 1000)
+
+            def backspace(self, *, dwell_ms, stop):
+                backend.output = backend.output[:-1]
+                stop.wait(dwell_ms / 1000)
+
+            def close(self):
+                pass
+
+        return replay(text, PreviewPort(), settings, ScaledStop(), progress,
+                      clock=lambda: time.monotonic() * backend.speedup)
 
 
 def default_backend():

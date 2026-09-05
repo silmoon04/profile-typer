@@ -15,11 +15,13 @@ field.show()
 field.activateWindow()
 field.setFocus()
 output = Path(sys.argv[1])
+history = []
 
 
 def save():
+    history.append(field.toPlainText())
     temporary = output.with_suffix(".tmp")
-    temporary.write_text(json.dumps({"text": field.toPlainText()}), encoding="utf-8")
+    temporary.write_text(json.dumps({"text": field.toPlainText(), "history": history[-100:]}), encoding="utf-8")
     temporary.replace(output)
 
 

@@ -36,7 +36,7 @@ def test_x11_unicode_tabs_multiline_delivery(receiver):
     expected = "A\n\tcafé 👋\n\n"
     backend = X11TypingBackend()
     assert any(window.hwnd == handle and window.pid == process.pid for window in backend.targets())
-    result = backend.type(expected, handle, TypingSettings(wpm=120, variation=0), threading.Event(), lambda *_: None)
+    result = backend.type(expected, handle, TypingSettings(wpm=120, variation=0, corrections=0), threading.Event(), lambda *_: None)
     assert not result.cancelled
     deadline = time.monotonic() + 2
     while received(path) != expected and time.monotonic() < deadline:
@@ -51,7 +51,26 @@ def test_x11_cancel_stops_before_remaining_text(receiver):
     def progress(*_):
         stop.set()
 
-    result = X11TypingBackend().type("abc", handle, TypingSettings(), stop, progress)
+    result = X11TypingBackend().type("abc", handle, TypingSettings(corrections=0), stop, progress)
     assert result.cancelled
     time.sleep(0.05)
     assert received(path) == "a"
+
+
+def test_x11_applies_recorded_word_error_and_backspaces(receiver):
+    from profile_typer.cadence import Mulberry32, build_edit_plan
+    from profile_typer.engine import replay
+    from profile_typer.platforms.x11 import X11Port
+    from profile_typer.profiles import recorded_profile
+    _, handle, path = receiver
+    profile = recorded_profile()
+    seed = next(seed for seed in range(100) if any(action.kind == "delete" for action in
+                build_edit_plan("the", Mulberry32(seed), correction_amount=1, profile=profile.mistakes)))
+    result = replay("the", X11Port(), TypingSettings(wpm=120, variation=0), threading.Event(), lambda *_: None,
+                    target=handle, rng=Mulberry32(seed))
+    assert not result.cancelled and result.corrections > 0
+    assert result.profile_id == "silmoon04-v1"
+    time.sleep(0.05)
+    result_file = json.loads(path.read_text(encoding="utf-8"))
+    assert result_file["text"] == "the"
+    assert any(snapshot in profile.mistakes.word_variants["the"] for snapshot in result_file["history"])

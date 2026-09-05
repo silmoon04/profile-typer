@@ -102,11 +102,13 @@ class Portal:
             self.close()
             raise
 
-    def press(self, keysym):
+    def press(self, keysym, dwell_ms=0, stop=None):
         async def send():
             await self._message(INTERFACE, "NotifyKeyboardKeysym", "oa{sv}iu", [self.session, {}, keysym, 1])
             try:
-                await asyncio.sleep(0)
+                deadline = self.loop.time() + dwell_ms / 1000
+                while self.loop.time() < deadline and not (stop is not None and stop.is_set()):
+                    await asyncio.sleep(min(0.02, deadline - self.loop.time()))
             finally:
                 await self._message(INTERFACE, "NotifyKeyboardKeysym", "oa{sv}iu", [self.session, {}, keysym, 0])
         self._run(send(), timeout=25)
@@ -143,15 +145,15 @@ class WaylandPort:
     def cancelled(self):
         return self.portal.revoked.is_set()
 
-    def insert(self, character):
+    def insert(self, character, *, dwell_ms=0, stop=None):
         keysym = {"\n": 0xFF0D, "\t": 0xFF09}.get(character)
         if keysym is None:
             codepoint = ord(character)
             keysym = codepoint if codepoint <= 0xFF else 0x01000000 | codepoint
-        self.portal.press(keysym)
+        self.portal.press(keysym, dwell_ms, stop)
 
-    def backspace(self):
-        self.portal.press(0xFF08)
+    def backspace(self, *, dwell_ms=0, stop=None):
+        self.portal.press(0xFF08, dwell_ms, stop)
 
     def close(self):
         self.portal.close()

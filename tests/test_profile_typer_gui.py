@@ -33,7 +33,7 @@ class ProfileTyperGuiTests(unittest.TestCase):
         configure_application(cls.app)
 
     def setUp(self):
-        self.backend = PreviewTypingBackend()
+        self.backend = PreviewTypingBackend(speedup=50)
         self.window = TyperWindow(backend=self.backend)
         self.window.show()
         self.app.processEvents()
@@ -281,6 +281,7 @@ class ProfileTyperGuiTests(unittest.TestCase):
             preferences.setValue("wpm", 66.5)
             preferences.setValue("delay", 1.5)
             preferences.setValue("advance", False)
+            preferences.setValue("cadence_profile_id", "silmoon04-v1")
             extra = TyperWindow(document=TypingDocument(), backend=PreviewTypingBackend(), preferences=preferences)
             self.assertEqual(extra.spins["wpm"].value(), 66.5)
             self.assertFalse(extra.advance_check.isChecked())
@@ -288,3 +289,22 @@ class ProfileTyperGuiTests(unittest.TestCase):
             extra.close()
             extra.deleteLater()
             self.assertEqual(float(preferences.value("wpm")), 84.5)
+
+    def test_upgrade_replaces_generic_defaults_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            preferences = QSettings(str(Path(directory) / "legacy.ini"), QSettings.Format.IniFormat)
+            for name, value in (("wpm", 100), ("corrections", 0), ("variation", 100), ("delay", 1.5), ("advance", False)):
+                preferences.setValue(name, value)
+            extra = TyperWindow(backend=PreviewTypingBackend(speedup=50), preferences=preferences)
+            self.assertEqual(extra.spins["wpm"].value(), 81.6)
+            self.assertEqual(extra.spins["corrections"].value(), 1)
+            self.assertEqual(extra.spins["delay"].value(), 1.5)
+            self.assertFalse(extra.advance_check.isChecked())
+            self.assertEqual(preferences.value("cadence_profile_id"), "silmoon04-v1")
+            extra.spins["corrections"].setValue(0)
+            extra.close()
+            extra.deleteLater()
+            restored = TyperWindow(backend=PreviewTypingBackend(), preferences=preferences)
+            self.assertEqual(restored.spins["corrections"].value(), 0)
+            restored.close()
+            restored.deleteLater()

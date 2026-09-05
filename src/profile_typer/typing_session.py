@@ -13,12 +13,13 @@ from enum import Enum
 from typing import Any, Callable, Protocol
 
 from .typing_document import TypingDocument
+from .profiles import recorded_profile
 
 
 @dataclass(frozen=True)
 class TypingSettings:
-    wpm: float = 100
-    corrections: float = 0
+    wpm: float = recorded_profile().natural_wpm
+    corrections: float = 1
     variation: float = 100
     delay: float = 3
     advance: bool = True
