@@ -74,3 +74,42 @@ def test_x11_applies_recorded_word_error_and_backspaces(receiver):
     result_file = json.loads(path.read_text(encoding="utf-8"))
     assert result_file["text"] == "the"
     assert any(snapshot in profile.mistakes.word_variants["the"] for snapshot in result_file["history"])
+
+
+def test_custom_view_types_only_clicked_field_and_keeps_view(receiver):
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtTest import QTest
+    from profile_typer.qt_typer.window import TyperWindow, configure_application
+    from profile_typer.typing_document import TypingDocument
+    from profile_typer.typing_session import Phase
+    _, handle, path = receiver
+    app = QApplication.instance() or QApplication([])
+    configure_application(app)
+    document = TypingDocument()
+    document.paste(json.dumps({"views": [{"id": "view", "title": "Grouped answers", "rows": [{"columns": 2, "fields": [
+        {"id": "reference", "title": "Reference", "text": "never send this", "actions": ["copy"]},
+        {"id": "answer", "title": "Answer", "text": "abc"},
+    ]}]}]}))
+    window = TyperWindow(document=document, backend=X11TypingBackend())
+    window.show()
+    app.processEvents()
+    window.target_combo.setCurrentIndex(window.target_combo.findData(handle))
+    window.spins["delay"].setValue(0)
+    window.spins["corrections"].setValue(0)
+    window.spins["variation"].setValue(0)
+    window.spins["wpm"].setValue(120)
+    try:
+        window.view_editor.cards["answer"].type_button.click()
+        deadline = time.monotonic() + 8
+        while window.session.busy and time.monotonic() < deadline:
+            app.processEvents()
+            QTest.qWait(10)
+        assert window.session.phase == Phase.DONE, window.session.message
+        assert received(path) == "abc"
+        assert document.selected_id == "view"
+        assert document.field("answer").types == 1
+        assert document.field("reference").types == 0
+    finally:
+        window.session.stop()
+        document.dirty = False
+        window.close()

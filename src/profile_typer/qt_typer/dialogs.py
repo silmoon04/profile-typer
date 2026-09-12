@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QLabel, QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
-from profile_typer.typing_queue import parse_queue
+from profile_typer.view_schema import parse_views
 
 
 class PasteJsonDialog(QDialog):
@@ -16,7 +16,7 @@ class PasteJsonDialog(QDialog):
         self.resize(560, 420)
         self.setMinimumSize(340, 320)
         layout = QVBoxLayout(self)
-        instructions = QLabel("Paste one object or an array with title and description fields.")
+        instructions = QLabel("Paste a title/description queue or a document containing views and rows.")
         instructions.setWordWrap(True)
         layout.addWidget(instructions)
         self.editor = QPlainTextEdit()
@@ -52,7 +52,7 @@ class PasteJsonDialog(QDialog):
 
     def _validate(self):
         try:
-            parse_queue(self.source)
+            parse_views(self.source)
         except ValueError as error:
             self.error_label.setText(str(error))
             return

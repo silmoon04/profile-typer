@@ -23,11 +23,14 @@ class QueueModel(QAbstractListModel):
             return None
         entry = self._entries[index.row()]
         if role == Qt.ItemDataRole.DisplayRole:
+            if entry.rows:
+                return (f"{entry.title}\n{len(entry.fields)} fields · "
+                        f"{sum(field.copies for field in entry.fields)} copies · {sum(field.types for field in entry.fields)} types")
             return f"{entry.title or '(untitled)'}\n{entry.status} · {len(entry.description):,} characters"
         if role == self.IdentityRole:
             return entry.id
         if role == self.SearchRole:
-            return entry.title
+            return "\n".join([entry.title, *(field.title for field in entry.fields)])
         if role == Qt.ItemDataRole.ToolTipRole:
             return entry.title
         return None

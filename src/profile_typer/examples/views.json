@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "title": "Example answer guide",
+  "views": [
+    {
+      "title": "Repository",
+      "color": "blue",
+      "rows": [
+        {"columns": 2, "fields": [
+          {"id": "task-id", "title": "Task ID", "text": "example-task"},
+          {"title": "Repository URL", "text": "https://example.org/project", "actions": ["copy"]}
+        ]},
+        {"columns": 2, "fields": [
+          {"title": "Codebase source", "text": "Public repository"},
+          {"title": "License", "text": "MIT"}
+        ]}
+      ]
+    },
+    {
+      "title": "Task",
+      "color": "purple",
+      "rows": [
+        {"fields": [{"title": "Task prompt", "text": "Describe the change to make."}]},
+        {"fields": [{"title": "Why this is realistic", "text": "Explain the practical use case."}]},
+        {"fields": [{"title": "Capabilities", "options": ["Code comprehension", "Testing", "Documentation"], "selected": ["Code comprehension", "Testing"], "multiple": true, "option_columns": 2}]}
+      ]
+    },
+    {
+      "title": "Rubric 1",
+      "color": "teal",
+      "rows": [
+        {"fields": [{"title": "Statement", "text": "Does the change preserve existing behavior?"}]},
+        {"columns": 2, "fields": [
+          {"title": "Dimension", "text": "Correctness"},
+          {"title": "Source", "text": "Task prompt"}
+        ]},
+        {"columns": 2, "fields": [
+          {"title": "A", "options": ["YES", "NO"], "selected": "YES", "option_columns": 2},
+          {"title": "B", "options": ["YES", "NO"], "selected": "NO", "option_columns": 2}
+        ]},
+        {"fields": [{"title": "Evidence and reason", "text": "Put the evidence supporting these choices here."}]}
+      ]
+    }
+  ]
+}

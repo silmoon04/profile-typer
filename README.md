@@ -19,7 +19,7 @@ mode that never sends input to another application.
 Download the `.deb` from the [releases page](https://github.com/silmoon04/profile-typer/releases), then install it:
 
 ```sh
-sudo apt install ./profile-typer_0.2.0_all.deb
+sudo apt install ./profile-typer_0.3.0_all.deb
 profile-typer
 ```
 
@@ -32,7 +32,7 @@ RemoteDesktop permission portal.
 Install the wheel from the releases page with Python 3.11 or newer:
 
 ```sh
-python -m pip install ./profile_typer-0.2.0-py3-none-any.whl
+python -m pip install ./profile_typer-0.3.0-py3-none-any.whl
 profile-typer
 ```
 
@@ -64,6 +64,17 @@ Choose **Open** for a file or **Paste JSON** to paste an object or array. Both
 `title` and `description` must be strings. Only the description is typed.
 Paste can replace or append to the queue, and invalid input leaves existing
 items intact. Save exports the edited titles and descriptions.
+
+For a workflow with several answers per step, use **custom views**. A view can
+group editable text fields, reference values, and selected options into rows.
+Each field has Copy/Type actions and separate clipboard/pencil counters. Rows
+adapt to smaller windows, and the view scrolls only when its content needs it.
+Typing one field stays in that view so other fields are not skipped.
+
+See the [custom view guide](docs/custom-views.md) and
+[example JSON](src/profile_typer/examples/views.json). Existing title/description
+queues continue to work. Saved view files include edits, choices, counters, and
+statuses; copying and typing do not save your answers in the background.
 
 WPM, delay, corrections, and variation are on the main page. Defaults use the
 recorded profile: **81.6 WPM reference pace, corrections 1×, variation 100%**.

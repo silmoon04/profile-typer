@@ -44,10 +44,17 @@ def main(argv: list[str] | None = None) -> int:
     def check(name, page):
         app.processEvents()
         QTest.qWait(60)
-        widgets = [window.start_button, window.stop_button, window.target_combo, window.paste_button, *window.spins.values()]
+        custom = bool(document.selected.rows)
+        widgets = [window.stop_button, window.target_combo, window.paste_button, *window.spins.values()]
+        if not custom:
+            widgets.append(window.start_button)
         if page == 0:
-            widgets.extend([window.description_edit, window.back_button, window.next_button])
-            assert window.description_edit.height() >= 70
+            widgets.extend([window.back_button, window.next_button])
+            if custom:
+                assert window.view_editor.horizontalScrollBar().maximum() == 0
+            else:
+                widgets.append(window.description_edit)
+                assert window.description_edit.height() >= 70
         if page == 1:
             widgets.extend([window.list_view, window.up_button, window.down_button])
         for widget in widgets:
@@ -80,6 +87,28 @@ def main(argv: list[str] | None = None) -> int:
         assert backend.output == expected
         assert document.selected_index == 1
         check("preview-complete", 0)
+        document.load(Path(__file__).resolve().parent / "examples" / "views.json")
+        window.refresh()
+        window.resize(1100, 1000)
+        check("views-wide", 0)
+        assert window.view_editor.verticalScrollBar().maximum() == 0
+        first_view_id = document.selected_id
+        window.view_editor.cards["task-id"].copy_button.click()
+        window.view_editor.cards["task-id"].type_button.click()
+        deadline = time.monotonic() + 5
+        while window.session.busy and time.monotonic() < deadline:
+            app.processEvents()
+            QTest.qWait(10)
+        assert document.selected_id == first_view_id
+        assert document.field("task-id").copies == document.field("task-id").types == 1
+        assert backend.output == document.field("task-id").value
+        document.navigate(2)
+        window.refresh()
+        check("views-rubric", 0)
+        window.resize(380, 420)
+        check("views-compact", 0)
+        assert window.view_editor.verticalScrollBar().maximum() > 0
+        assert all(row.effective_columns == 1 for row in window.view_editor.rows)
         if args.snap:
             from profile_typer.platforms.win32_input import _user32, ensure_modifiers_released, focus_window
             window.resize(1000, 720)
@@ -100,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
             check("windows-snap", 0)
         report = {"passed": True, "qt_version": PySide6.__version__, "preview_exact_match": True,
                   "profile_id": recorded_profile().id, "profile_samples": dict(recorded_profile().timing["summary"]),
+                  "view_field_counts": {"copies": document.field("task-id").copies, "types": document.field("task-id").types},
                   "cases": measurements, "state_history": list(window.session.history)}
         (args.output / "result.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report))

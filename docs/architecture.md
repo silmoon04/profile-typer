@@ -6,6 +6,7 @@ The source distribution includes the author's validated aggregate typing profile
 | Module | Responsibility |
 | --- | --- |
 | `typing_document.py` | Queue identities, edits, selection, locking, and atomic JSON saves. |
+| `view_schema.py` | Validated custom views, rows, fields, options, colors, and legacy-format compatibility. |
 | `typing_session.py` | Permission preparation, countdown, worker lifetime, progress, cancellation, completion, and failure. |
 | `engine.py` | Shared recorded-cadence replay with interruptible waits. Accepts an input port, random generator, and clock. |
 | `profiles.py`, `data/silmoon04.json` | Bundled recording aggregates and schema validation. Missing or invalid data fails visibly instead of selecting generic timing. |
@@ -15,6 +16,17 @@ The source distribution includes the author's validated aggregate typing profile
 | `platforms/x11.py` | X11 window discovery, focus checks, Escape, and `xdotool` delivery. |
 | `platforms/wayland.py` | Permission-based keyboard delivery through the desktop portal. |
 | `qt_typer/` | Qt list model, views, dialogs, and window placement. |
+
+Custom views use the same document and typing session as simple queues. A field
+Type action passes a snapshot of that field's value to the session. The document
+owns usage counters and blocks edits while typing; view navigation cannot redirect
+an active run. Copy counters count accepted clipboard actions and type counters
+count accepted starts. Status is kept separately so cancellation is not completion.
+
+The renderer uses Qt text widgets and validated colors. It does not embed a web
+browser or run HTML. Rows reflow within the available width, and text editors
+grow with their contents so the outer view owns vertical scrolling. The optional
+answer-guide converter reads a JSON data block without executing page scripts.
 
 The UI and worker communicate through queued events. Workers never access Qt
 widgets. Documents remain locked until the worker exits. Successful completion

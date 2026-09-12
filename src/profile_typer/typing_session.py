@@ -73,11 +73,11 @@ class TypingSession:
         self.phase = phase
         self.message = message
 
-    def start(self, settings: TypingSettings, target: int | None = None) -> None:
+    def start(self, settings: TypingSettings, target: int | None = None, *, field_id: str | None = None) -> None:
         if self.busy:
             raise ValueError("A typing run is already active.")
         settings.validate()
-        self._entry = self.document.begin_run()
+        self._entry = self.document.begin_run(field_id)
         self._settings = settings
         self._target = target
         self._stop = threading.Event()

@@ -16,11 +16,12 @@ from PySide6.QtWidgets import (
 
 from profile_typer.typing_backends import PreviewTypingBackend, default_backend
 from profile_typer.typing_document import TypingDocument
-from profile_typer.typing_queue import load_queue
+from profile_typer.view_schema import parse_views, COLORS
 from profile_typer.profiles import recorded_profile
 from profile_typer.typing_session import Phase, TypingSession, TypingSettings
 from .model import QueueModel
 from .dialogs import PasteJsonDialog
+from .views import ViewEditor, LegacyTextEdit, usage_icon
 
 
 class PreciseSpinBox(QDoubleSpinBox):
@@ -82,6 +83,7 @@ class TyperWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction("Diagnostics", self.show_diagnostics)
         menu.addAction("Use recorded profile defaults", self._use_recorded_defaults)
+        menu.addAction("Reset counters in this view", self.reset_usage)
         if isinstance(self.backend, PreviewTypingBackend):
             menu.addAction("Preview output", lambda: self._show_text("Preview output", self.backend.output))
         more.setMenu(menu)
@@ -157,6 +159,8 @@ class TyperWindow(QMainWindow):
         destination.addWidget(self._button("Refresh", self.refresh_windows))
         layout.addLayout(destination)
         controls = QHBoxLayout()
+        self.copy_button = self._button("Copy", self.copy_description)
+        controls.addWidget(self.copy_button)
         self.start_button = self._button("Type description", self.start_typing)
         self.start_button.setObjectName("primary")
         self.stop_button = self._button("Stop (Esc)", self.stop_typing, editing=False)
@@ -211,7 +215,8 @@ class TyperWindow(QMainWindow):
         self.edit_controls.append(self.search)
         layout.addWidget(self.list_view, 1)
         row = QHBoxLayout()
-        row.addWidget(self._button("Add", self.add_item))
+        self.add_button = self._button("Add", self.add_item)
+        row.addWidget(self.add_button)
         row.addWidget(self._button("Duplicate", lambda: self.add_item(duplicate=True)))
         row.addWidget(self._button("Remove", self.remove_item))
         layout.addLayout(row)
@@ -243,16 +248,39 @@ class TyperWindow(QMainWindow):
         self.title_edit.setAccessibleName("Item title")
         self.title_edit.textEdited.connect(self._edit)
         layout.addWidget(self.title_edit)
-        self.description_edit = QPlainTextEdit()
+        self.content_stack = QStackedWidget()
+        self.content_stack.setMinimumSize(0, 0)
+        self.legacy_editor = QWidget()
+        legacy_layout = QVBoxLayout(self.legacy_editor)
+        legacy_layout.setContentsMargins(0, 0, 0, 0)
+        legacy_layout.setSpacing(2)
+        self.description_edit = LegacyTextEdit()
         self.description_edit.setPlaceholderText("Enter the description to type…")
         self.description_edit.setAccessibleName("Description to type")
         self.description_edit.setMinimumSize(0, 50)
         self.description_edit.setTabChangesFocus(False)
         self.description_edit.textChanged.connect(self._edit)
-        layout.addWidget(self.description_edit, 1)
+        self.description_edit.copyRequested.connect(lambda text: self.copy_field(self.document.selected.id, text))
+        legacy_layout.addWidget(self.description_edit, 1)
         self.stats_label = QLabel()
         self.stats_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-        layout.addWidget(self.stats_label)
+        stats = QHBoxLayout()
+        stats.setSpacing(4)
+        stats.addWidget(self.stats_label, 1)
+        self.legacy_copies = QLabel()
+        self.legacy_types = QLabel()
+        for kind, counter in (("copy", self.legacy_copies), ("type", self.legacy_types)):
+            icon = QLabel()
+            icon.setPixmap(usage_icon(kind))
+            stats.addWidget(icon)
+            stats.addWidget(counter)
+        self.legacy_copies.setToolTip("Copy actions")
+        self.legacy_types.setToolTip("Typing runs started")
+        legacy_layout.addLayout(stats)
+        self.content_stack.addWidget(self.legacy_editor)
+        self.view_editor = ViewEditor(self.document, changed=self.refresh, copy_field=self.copy_field, type_field=self.type_field)
+        self.content_stack.addWidget(self.view_editor)
+        layout.addWidget(self.content_stack, 1)
         self.edit_controls.extend([self.title_edit, self.description_edit])
         return panel
 
@@ -388,18 +416,34 @@ class TyperWindow(QMainWindow):
             self.model.sync()
             entry = self.document.selected
             changed_selection = self._shown_id != entry.id
-            if changed_selection:
+            if changed_selection or self.title_edit.text() != entry.title:
                 self.title_edit.setText(entry.title)
+                self.title_edit.setCursorPosition(0)
+            if not entry.rows and (changed_selection or self.description_edit.toPlainText() != entry.description):
                 self.description_edit.setPlainText(entry.description)
-                self._shown_id = entry.id
+            self._shown_id = entry.id
             index = self.proxy.mapFromSource(self.model.index(self.document.selected_index))
             self.list_view.selectionModel().setCurrentIndex(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
             if changed_selection and index.isValid():
                 self.list_view.scrollTo(index)
             busy = self.session.busy
+            custom = bool(entry.rows)
+            self._update_tab_titles()
+            self.add_button.setText("Add view" if self.document.custom else "Add")
+            self.search.setPlaceholderText("Search view or field titles…" if self.document.custom else "Search titles…")
+            self.content_stack.setCurrentWidget(self.view_editor if custom else self.legacy_editor)
+            if custom:
+                self.view_editor.sync(entry, busy=busy)
+            self.start_button.setVisible(not custom)
+            self.copy_button.setVisible(not custom)
+            accent = COLORS.get(entry.color or "blue", entry.color or "#2563eb")
+            self.title_edit.setStyleSheet(f"QLineEdit {{ border-left: 3px solid {accent}; }}" if custom else "")
             for widget in self.edit_controls:
                 widget.setEnabled(not busy)
             self.start_button.setEnabled(not busy and bool(entry.description))
+            self.copy_button.setEnabled(not busy and bool(entry.description))
+            self.advance_check.setEnabled(not busy and not custom)
+            self.advance_check.setToolTip("Custom views advance manually so other fields are not skipped." if custom else "")
             self.stop_button.setEnabled(busy)
             for button in (self.back_button, self.up_button):
                 button.setEnabled(not busy and self.document.selected_index > 0)
@@ -410,13 +454,16 @@ class TyperWindow(QMainWindow):
             stats = f"silmoon04 · {len(text):,} characters · {len(text.split()):,} words"
             self.stats_label.setText(stats)
             self.stats_label.setToolTip(stats)
-            filename = self.document.path.name if self.document.path else "Unsaved queue"
+            self.legacy_copies.setText(str(entry.copies))
+            self.legacy_types.setText(str(entry.types))
+            filename = self.document.path.name if self.document.path else (self.document.title if self.document.custom else "Unsaved queue")
             self.file_label.setText(filename + (" *" if self.document.dirty else ""))
             self.file_label.setToolTip(str(self.document.path or "Unsaved queue"))
             application_name = "Profile Typer [preview]" if isinstance(self.backend, PreviewTypingBackend) else "Profile Typer"
             self.setWindowTitle(f"{application_name} | {filename}{' *' if self.document.dirty else ''}")
             self.progress.setValue(round(self.session.progress * 10))
             self._refresh_status()
+            self.title_edit.setToolTip(entry.title)
         finally:
             self._refreshing = False
 
@@ -464,11 +511,12 @@ class TyperWindow(QMainWindow):
                 return
             path = Path(chosen)
         try:
-            load_queue(path)  # Validate before asking to discard the current document.
+            parse_views(path.read_text(encoding="utf-8-sig"))  # Validate before asking to discard the current document.
             if not append and not self._discard_changes():
                 return
             self.document.load(path, append=append)
             self.search.clear()
+            self.tabs.setCurrentIndex(0)
             self.refresh()
             self._set_status(f"Loaded {path.name}.")
         except (OSError, ValueError) as error:
@@ -526,6 +574,38 @@ class TyperWindow(QMainWindow):
             self._set_status(str(error))
         self.refresh()
 
+    def type_field(self, field_id):
+        if self.session.busy:
+            return
+        try:
+            self.session.start(self._settings(), self.target_combo.currentData(), field_id=field_id)
+        except (ValueError, OSError) as error:
+            self._set_status(str(error))
+        self.refresh()
+
+    def copy_description(self):
+        self.copy_field(self.document.selected.id, None)
+
+    def copy_field(self, field_id, text=None):
+        if self.session.busy:
+            return
+        try:
+            value = self.document.field(field_id).value if text is None else text
+            if not value:
+                return
+            QApplication.clipboard().setText(value)
+            self.document.record_copy(field_id)
+            self.refresh()
+            self._set_status("Copied to clipboard.")
+        except (ValueError, RuntimeError) as error:
+            self._set_status(str(error))
+
+    def reset_usage(self):
+        if not self.session.busy:
+            self.document.reset_usage()
+            self.refresh()
+            self._set_status("Counters reset for the current view.")
+
     def stop_typing(self):
         self.session.stop()
         self.refresh()
@@ -572,6 +652,13 @@ class TyperWindow(QMainWindow):
             self.pages.setCurrentIndex(self.tabs.currentIndex())
             self.queue_panel.show()
         self._refresh_status()
+        self._update_tab_titles()
+
+    def _update_tab_titles(self):
+        custom = bool(self.document.selected.rows)
+        self.tabs.setTabText(0, ("View" if self._compact else "Views") if custom else
+                             ("Description" if self._compact else "Queue and description"))
+        self.tabs.setTabText(1, "Views" if self.document.custom else "Queue")
 
     def _layout_quick_controls(self):
         if not hasattr(self, "quick_grid"):
@@ -589,14 +676,16 @@ class TyperWindow(QMainWindow):
 
     def show_format(self):
         self._show_text("JSON format", '[\n  {"title": "hello", "description": "text to type out"}\n]\n\n'
-                        "A single object is also accepted. Only descriptions are typed.\n"
+                        "A single object is also accepted. Only descriptions are typed.\n\n"
+                        'Custom views: {"title":"My guide","views":[{"title":"Repository","rows":[{"columns":2,"fields":[{"title":"Task ID","text":"task-1"},{"title":"URL","text":"https://example.org","actions":["copy"]}]}]}]}\n\n'
                         "Ctrl+O: open; Ctrl+S: save; Alt+Left/Right: navigate; Escape: stop.")
 
     def show_diagnostics(self):
         import json
         import platform
         import PySide6
-        text = (f"Python {platform.python_version()} | PySide6 {PySide6.__version__}\n"
+        from profile_typer import __version__
+        text = (f"Profile Typer {__version__}\nPython {platform.python_version()} | PySide6 {PySide6.__version__}\n"
                 f"Profile: {recorded_profile().name} ({recorded_profile().id})\n"
                 f"Recorded samples: {json.dumps(recorded_profile().timing['summary'])}\n"
                 f"Backend: {type(self.backend).__name__}\nWindow: {self.width()} × {self.height()}\n"
@@ -663,6 +752,7 @@ def configure_application(app: QApplication):
         QLineEdit { padding: 4px; }
         QDoubleSpinBox { padding: 1px 3px; }
         QPlainTextEdit { border: 1px solid #c8d2e0; border-radius: 5px; padding: 6px; }
+        QTextEdit#field-value { border: 1px solid #d6deea; background: white; border-radius: 3px; padding: 3px; }
         QListView { border: 1px solid #c8d2e0; border-radius: 5px; }
         QListView::item { padding: 7px; }
         QTabBar::tab { padding: 6px 12px; border: 0; border-bottom: 2px solid #d4dce8; background: #edf1f7; }

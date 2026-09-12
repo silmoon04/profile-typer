@@ -19,6 +19,10 @@ the first release. The verification results below were obtained locally.
   command runs from outside the source tree with `PYTHONPATH` removed.
 - The wheel and source archive build successfully. Screenshots cover wide,
   side, compact, queue, and settings views.
+- Custom view checks cover field-specific copy/type counters, selected text,
+  options and custom answers, mixed legacy imports, save/load, ID collisions,
+  row reflow, and scrolling only when content needs it. An X11 test clicks a
+  field's Type button and verifies that only that field reaches the receiver.
 - The Wayland client is exercised against a private D-Bus portal fixture:
   permission ordering, keyboard-only selection, key-down/key-up pairs, session
   closure, and permission denial without sending any keys.
