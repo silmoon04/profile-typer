@@ -14,12 +14,20 @@ mode that never sends input to another application.
 
 ## Install
 
+### Windows app
+
+Download `ProfileTyper-0.4.0-windows-x64.zip` from the
+[releases page](https://github.com/silmoon04/profile-typer/releases).
+Extract the whole folder and double-click **ProfileTyper.exe**. Python is
+included, and no terminal opens. Keep `_internal` beside the executable.
+See [Windows setup and build instructions](docs/windows.md).
+
 ### Debian 13
 
 Download the `.deb` from the [releases page](https://github.com/silmoon04/profile-typer/releases), then install it:
 
 ```sh
-sudo apt install ./profile-typer_0.3.0_all.deb
+sudo apt install ./profile-typer_0.4.0_all.deb
 profile-typer
 ```
 
@@ -27,12 +35,12 @@ The package uses Debian's Qt and Python libraries. It also installs a desktop
 launcher. X11 input uses `xdotool`; Wayland input uses the desktop's
 RemoteDesktop permission portal.
 
-### Windows or a Python virtual environment
+### Python virtual environment
 
 Install the wheel from the releases page with Python 3.11 or newer:
 
 ```sh
-python -m pip install ./profile_typer-0.3.0-py3-none-any.whl
+python -m pip install ./profile_typer-0.4.0-py3-none-any.whl
 profile-typer
 ```
 
@@ -75,6 +83,12 @@ See the [custom view guide](docs/custom-views.md) and
 [example JSON](src/profile_typer/examples/views.json). Existing title/description
 queues continue to work. Saved view files include edits, choices, counters, and
 statuses; copying and typing do not save your answers in the background.
+
+Save updates the open file; **More > Save as** chooses another path. Recent
+views retain their editor cursor, undo history, and scroll position. Queue
+management actions are grouped under **Organize**. The
+[interface guide](docs/interface.md) describes the shared typography, icon,
+and interaction rules.
 
 WPM, delay, corrections, and variation are on the main page. Defaults use the
 recorded profile: **81.6 WPM reference pace, corrections 1×, variation 100%**.

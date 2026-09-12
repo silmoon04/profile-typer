@@ -16,12 +16,13 @@ from PySide6.QtWidgets import (
 
 from profile_typer.typing_backends import PreviewTypingBackend, default_backend
 from profile_typer.typing_document import TypingDocument
-from profile_typer.view_schema import parse_views, COLORS
+from profile_typer.view_schema import parse_views
 from profile_typer.profiles import recorded_profile
 from profile_typer.typing_session import Phase, TypingSession, TypingSettings
-from .model import QueueModel
+from .model import QueueModel, QueueDelegate
 from .dialogs import PasteJsonDialog
 from .views import ViewEditor, LegacyTextEdit, usage_icon
+from .theme import app_icon, mono_font, configure_application as configure_application
 
 
 class PreciseSpinBox(QDoubleSpinBox):
@@ -43,9 +44,11 @@ class TyperWindow(QMainWindow):
         self._compact: bool | None = None
         self._closing_requested = False
         self._shown_id: str | None = None
+        self._dense = None
         self.setWindowTitle("Profile Typer")
         self.setMinimumSize(360, 400)
-        self.resize(1000, 720)
+        self.resize(1120, 820)
+        self.setWindowIcon(app_icon())
         self._build_ui()
         self._restore_preferences()
         self.refresh_windows()
@@ -65,20 +68,32 @@ class TyperWindow(QMainWindow):
     def _build_ui(self):
         self.edit_controls = []
         page = QWidget()
+        page.setObjectName("workspace")
         self.setCentralWidget(page)
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(8)
+        self.root_layout = layout
         toolbar = QHBoxLayout()
+        self.brand_icon = QLabel()
+        self.brand_icon.setPixmap(app_icon().pixmap(32, 32))
+        toolbar.addWidget(self.brand_icon)
+        self.brand_label = QLabel("PROFILE TYPER")
+        self.brand_label.setObjectName("brand")
+        toolbar.addWidget(self.brand_label)
+        toolbar.addSpacing(8)
         toolbar.addWidget(self._button("Open…", self.open_json))
-        toolbar.addWidget(self._button("Save…", self.save_json))
+        toolbar.addWidget(self._button("Save", self.save_json))
         self.paste_button = self._button("Paste JSON", self.paste_json)
         toolbar.addWidget(self.paste_button)
         more = QToolButton()
-        more.setText("More")
+        more.setText("···")
+        more.setAccessibleName("More actions")
+        more.setToolTip("More actions")
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(more)
         menu.addAction("Append JSON…", lambda: self.open_json(append=True))
+        menu.addAction("Save as…", lambda: self.save_json(save_as=True))
         menu.addAction("JSON format", self.show_format)
         menu.addSeparator()
         menu.addAction("Diagnostics", self.show_diagnostics)
@@ -92,6 +107,7 @@ class TyperWindow(QMainWindow):
         self.file_label.setMinimumWidth(0)
         self.file_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.file_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.file_label.setObjectName("eyebrow")
         toolbar.addWidget(self.file_label, 1)
         layout.addLayout(toolbar)
         if isinstance(self.backend, PreviewTypingBackend):
@@ -102,7 +118,7 @@ class TyperWindow(QMainWindow):
         self.tabs.addTab("Queue and description")
         self.tabs.addTab("Queue")
         self.tabs.addTab("Settings")
-        self.tabs.setExpanding(True)
+        self.tabs.setExpanding(False)
         self.tabs.currentChanged.connect(self._switch_page)
         layout.addWidget(self.tabs)
         self.pages = QStackedWidget()
@@ -129,6 +145,12 @@ class TyperWindow(QMainWindow):
         self.pages.addWidget(self.queue_page)
         self.settings_page = self._build_settings()
         self.pages.addWidget(self.settings_page)
+        dock = QWidget()
+        dock.setObjectName("control-dock")
+        dock_layout = QVBoxLayout(dock)
+        dock_layout.setContentsMargins(0, 8, 0, 0)
+        dock_layout.setSpacing(5)
+        layout.addWidget(dock)
         self.quick_controls = QWidget()
         self.quick_grid = QGridLayout(self.quick_controls)
         self.quick_grid.setContentsMargins(0, 0, 0, 0)
@@ -142,11 +164,12 @@ class TyperWindow(QMainWindow):
             field_layout.setContentsMargins(0, 0, 0, 0)
             field_layout.setSpacing(4)
             field_layout.addWidget(QLabel(label), 1)
+            self.spins[name].setFont(mono_font())
             self.spins[name].setMaximumWidth(84)
             field_layout.addWidget(self.spins[name])
             self.quick_fields.append(field)
         self._quick_columns = None
-        layout.addWidget(self.quick_controls)
+        dock_layout.addWidget(self.quick_controls)
         self._layout_quick_controls()
         destination = QHBoxLayout()
         destination.addWidget(QLabel("To"))
@@ -157,13 +180,14 @@ class TyperWindow(QMainWindow):
         self.edit_controls.append(self.target_combo)
         destination.addWidget(self.target_combo, 1)
         destination.addWidget(self._button("Refresh", self.refresh_windows))
-        layout.addLayout(destination)
+        dock_layout.addLayout(destination)
         controls = QHBoxLayout()
         self.copy_button = self._button("Copy", self.copy_description)
         controls.addWidget(self.copy_button)
         self.start_button = self._button("Type description", self.start_typing)
         self.start_button.setObjectName("primary")
         self.stop_button = self._button("Stop (Esc)", self.stop_typing, editing=False)
+        self.stop_button.setObjectName("stop")
         controls.addWidget(self.start_button)
         controls.addWidget(self.stop_button)
         self.progress = QProgressBar()
@@ -171,13 +195,15 @@ class TyperWindow(QMainWindow):
         self.progress.setTextVisible(False)
         self.progress.setMinimumWidth(20)
         controls.addWidget(self.progress, 1)
-        layout.addLayout(controls)
+        dock_layout.addLayout(controls)
         self.status_label = QLabel()
+        self.status_label.setObjectName("status")
         self.status_label.setMinimumWidth(0)
         self.status_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.status_label.setFixedHeight(self.fontMetrics().height() + 6)
-        layout.addWidget(self.status_label)
+        dock_layout.addWidget(self.status_label)
         for shortcut, callback in (("Ctrl+O", self.open_json), ("Ctrl+S", self.save_json),
+                                    ("Ctrl+Shift+S", lambda: self.save_json(save_as=True)),
                                     ("Ctrl+Shift+V", self.paste_json),
                                     ("Alt+Left", lambda: self.navigate(-1)), ("Alt+Right", lambda: self.navigate(1)),
                                     ("Escape", self.stop_typing)):
@@ -190,7 +216,12 @@ class TyperWindow(QMainWindow):
         panel = QWidget()
         panel.setMinimumWidth(0)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(6, 4, 12, 4)
+        layout.setSpacing(8)
+        self.queue_heading = QLabel("QUEUE")
+        self.queue_heading.setObjectName("eyebrow")
+        self.queue_heading.setFont(mono_font())
+        layout.addWidget(self.queue_heading)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search titles…")
         self.search.setClearButtonEnabled(True)
@@ -202,6 +233,8 @@ class TyperWindow(QMainWindow):
         self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.list_view = QListView()
         self.list_view.setModel(self.proxy)
+        self.list_view.setItemDelegate(QueueDelegate(self.list_view))
+        self.list_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.list_view.setMinimumSize(0, 30)
         self.list_view.setUniformItemSizes(True)
         self.list_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -214,17 +247,26 @@ class TyperWindow(QMainWindow):
         self.edit_controls.append(self.list_view)
         self.edit_controls.append(self.search)
         layout.addWidget(self.list_view, 1)
+        self.empty_search = QLabel("No matching views.\nTry another title or field name.")
+        self.empty_search.setWordWrap(True)
+        self.empty_search.setObjectName("eyebrow")
+        layout.addWidget(self.empty_search)
         row = QHBoxLayout()
         self.add_button = self._button("Add", self.add_item)
         row.addWidget(self.add_button)
-        row.addWidget(self._button("Duplicate", lambda: self.add_item(duplicate=True)))
-        row.addWidget(self._button("Remove", self.remove_item))
-        layout.addLayout(row)
-        row = QHBoxLayout()
-        self.up_button = self._button("Move up", lambda: self.move_item(-1))
-        self.down_button = self._button("Move down", lambda: self.move_item(1))
-        row.addWidget(self.up_button)
-        row.addWidget(self.down_button)
+        self.organize_button = QToolButton()
+        self.organize_button.setText("Organize")
+        self.organize_button.setMinimumWidth(96)
+        self.organize_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        organize = QMenu(self.organize_button)
+        organize.addAction("Duplicate", lambda: self.add_item(duplicate=True))
+        self.up_button = organize.addAction("Move up", lambda: self.move_item(-1))
+        self.down_button = organize.addAction("Move down", lambda: self.move_item(1))
+        organize.addSeparator()
+        organize.addAction("Remove…", self.remove_item)
+        self.organize_button.setMenu(organize)
+        self.edit_controls.append(self.organize_button)
+        row.addWidget(self.organize_button)
         layout.addLayout(row)
         return panel
 
@@ -232,18 +274,20 @@ class TyperWindow(QMainWindow):
         panel = QWidget()
         panel.setMinimumSize(0, 0)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setContentsMargins(16, 4, 12, 4)
+        layout.setSpacing(10)
         row = QHBoxLayout()
         self.back_button = self._button("← Back", lambda: self.navigate(-1))
         self.next_button = self._button("Next →", lambda: self.navigate(1))
         self.position_label = QLabel()
+        self.position_label.setFont(mono_font())
         self.position_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         row.addWidget(self.back_button)
         row.addWidget(self.position_label, 1)
         row.addWidget(self.next_button)
         layout.addLayout(row)
         self.title_edit = QLineEdit()
+        self.title_edit.setObjectName("view-title")
         self.title_edit.setPlaceholderText("Item title (not typed)")
         self.title_edit.setAccessibleName("Item title")
         self.title_edit.textEdited.connect(self._edit)
@@ -293,7 +337,10 @@ class TyperWindow(QMainWindow):
         layout.setContentsMargins(6, 8, 10, 8)
         profile = recorded_profile()
         summary = profile.timing["summary"]
-        label = QLabel(f"Profile: {profile.name}\n{summary['interval_samples']:,} intervals · "
+        heading = QLabel("Your typing profile")
+        heading.setObjectName("settings-title")
+        layout.addWidget(heading)
+        label = QLabel(f"{profile.name}\n{summary['interval_samples']:,} intervals · "
                        f"{summary['digraphs_modelled']} key pairs · {summary['dwell_samples']:,} hold times")
         label.setWordWrap(True)
         layout.addWidget(label)
@@ -320,6 +367,11 @@ class TyperWindow(QMainWindow):
                           "0 disables corrections. Variation 100% uses the measured timing spread.")
         help_text.setWordWrap(True)
         layout.addWidget(help_text)
+        restore = self._button("Restore recorded defaults", self._use_recorded_defaults)
+        layout.addWidget(restore, 0, Qt.AlignmentFlag.AlignLeft)
+        playback = QLabel("Playback")
+        playback.setObjectName("settings-title")
+        layout.addWidget(playback)
         self.advance_check = QCheckBox("Select the next item when done")
         self.advance_check.setChecked(True)
         self.advance_check.toggled.connect(self._settings_changed)
@@ -431,13 +483,13 @@ class TyperWindow(QMainWindow):
             self._update_tab_titles()
             self.add_button.setText("Add view" if self.document.custom else "Add")
             self.search.setPlaceholderText("Search view or field titles…" if self.document.custom else "Search titles…")
+            self.queue_heading.setText(f"{'VIEWS' if self.document.custom else 'QUEUE'}  /  {len(self.document.entries):02d}")
+            self.empty_search.setVisible(self.proxy.rowCount() == 0)
             self.content_stack.setCurrentWidget(self.view_editor if custom else self.legacy_editor)
             if custom:
                 self.view_editor.sync(entry, busy=busy)
             self.start_button.setVisible(not custom)
             self.copy_button.setVisible(not custom)
-            accent = COLORS.get(entry.color or "blue", entry.color or "#2563eb")
-            self.title_edit.setStyleSheet(f"QLineEdit {{ border-left: 3px solid {accent}; }}" if custom else "")
             for widget in self.edit_controls:
                 widget.setEnabled(not busy)
             self.start_button.setEnabled(not busy and bool(entry.description))
@@ -449,7 +501,7 @@ class TyperWindow(QMainWindow):
                 button.setEnabled(not busy and self.document.selected_index > 0)
             for button in (self.next_button, self.down_button):
                 button.setEnabled(not busy and self.document.selected_index < len(self.document.entries) - 1)
-            self.position_label.setText(f"{self.document.selected_index + 1} / {len(self.document.entries)}")
+            self.position_label.setText(f"{self.document.selected_index + 1:02d} / {len(self.document.entries):02d}")
             text = entry.description
             stats = f"silmoon04 · {len(text):,} characters · {len(text.split()):,} words"
             self.stats_label.setText(stats)
@@ -522,10 +574,12 @@ class TyperWindow(QMainWindow):
         except (OSError, ValueError) as error:
             QMessageBox.warning(self, "Cannot open queue", str(error))
 
-    def save_json(self, _checked=False):
+    def save_json(self, _checked=False, *, save_as=False):
         if self.session.busy:
             return False
-        chosen, _ = QFileDialog.getSaveFileName(self, "Save typing queue", str(self.document.path or "typing-queue.json"), "JSON files (*.json)")
+        chosen = self.document.path if not save_as else None
+        if chosen is None:
+            chosen, _ = QFileDialog.getSaveFileName(self, "Save typing queue", str(self.document.path or "typing-queue.json"), "JSON files (*.json)")
         if not chosen:
             return False
         try:
@@ -596,6 +650,8 @@ class TyperWindow(QMainWindow):
             QApplication.clipboard().setText(value)
             self.document.record_copy(field_id)
             self.refresh()
+            if field_id in self.view_editor.cards and self.document.selected.rows:
+                self.view_editor.cards[field_id].show_copy_feedback()
             self._set_status("Copied to clipboard.")
         except (ValueError, RuntimeError) as error:
             self._set_status(str(error))
@@ -633,6 +689,19 @@ class TyperWindow(QMainWindow):
         if not hasattr(self, "pages"):
             return
         self._layout_quick_controls()
+        dense = self.height() < 540
+        if dense != self._dense:
+            self._dense = dense
+            root = self.centralWidget()
+            root.setProperty("dense", dense)
+            for widget in [root, *root.findChildren(QWidget)]:
+                widget.style().unpolish(widget)
+                widget.style().polish(widget)
+            self.root_layout.setSpacing(3 if dense else 8)
+            self.editor_panel.layout().setSpacing(3 if dense else 10)
+            self.list_view.doItemsLayout()
+        self.brand_label.setVisible(self.width() >= 800)
+        self.brand_icon.setVisible(self.width() >= 440)
         compact = self.width() < 760
         if compact != self._compact:
             self._compact = compact
@@ -655,9 +724,7 @@ class TyperWindow(QMainWindow):
         self._update_tab_titles()
 
     def _update_tab_titles(self):
-        custom = bool(self.document.selected.rows)
-        self.tabs.setTabText(0, ("View" if self._compact else "Views") if custom else
-                             ("Description" if self._compact else "Queue and description"))
+        self.tabs.setTabText(0, "Workspace")
         self.tabs.setTabText(1, "Views" if self.document.custom else "Queue")
 
     def _layout_quick_controls(self):
@@ -719,45 +786,3 @@ class TyperWindow(QMainWindow):
         if self.preferences is not None:
             self.preferences.sync()
         event.accept()
-
-
-def configure_application(app: QApplication):
-    from PySide6.QtCore import QStandardPaths
-    from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-    # Windows' offscreen plugin needs an explicit font for meaningful screenshots.
-    if app.platformName() == "offscreen" and "Segoe UI" not in QFontDatabase.families():
-        for directory in QStandardPaths.standardLocations(QStandardPaths.StandardLocation.FontsLocation):
-            path = Path(directory) / "segoeui.ttf"
-            if path.exists():
-                QFontDatabase.addApplicationFont(str(path))
-                break
-    app.setStyle("Fusion")
-    font = QFont("Segoe UI", 10) if "Segoe UI" in QFontDatabase.families() else QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
-    font.setPointSize(10)
-    app.setFont(font)
-    palette = app.palette()
-    for role, color in ((QPalette.ColorRole.Window, "#f4f6fa"), (QPalette.ColorRole.Base, "#ffffff"),
-                         (QPalette.ColorRole.WindowText, "#263244"), (QPalette.ColorRole.Text, "#263244"),
-                         (QPalette.ColorRole.Button, "#edf1f7"), (QPalette.ColorRole.ButtonText, "#263244"),
-                         (QPalette.ColorRole.PlaceholderText, "#697b91"),
-                         (QPalette.ColorRole.Highlight, "#2563eb"), (QPalette.ColorRole.HighlightedText, "#ffffff")):
-        palette.setColor(role, QColor(color))
-    for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
-        palette.setColor(QPalette.ColorGroup.Disabled, role, QColor("#8793a5"))
-    app.setPalette(palette)
-    app.setStyleSheet("""
-        QPushButton, QToolButton { padding: 5px 9px; }
-        QPushButton#primary { background: #2563eb; color: white; border-radius: 5px; }
-        QPushButton#primary:disabled { background: #c5cfdf; color: #59677a; }
-        QLineEdit { padding: 4px; }
-        QDoubleSpinBox { padding: 1px 3px; }
-        QPlainTextEdit { border: 1px solid #c8d2e0; border-radius: 5px; padding: 6px; }
-        QTextEdit#field-value { border: 1px solid #d6deea; background: white; border-radius: 3px; padding: 3px; }
-        QListView { border: 1px solid #c8d2e0; border-radius: 5px; }
-        QListView::item { padding: 7px; }
-        QTabBar::tab { padding: 6px 12px; border: 0; border-bottom: 2px solid #d4dce8; background: #edf1f7; }
-        QTabBar::tab:selected { border-bottom-color: #2563eb; color: #1d4ed8; background: #e4edff; }
-        QLabel#preview { color: #245da8; }
-        QProgressBar { border: 1px solid #d4dce8; border-radius: 4px; max-height: 12px; }
-        QProgressBar::chunk { background: #2563eb; }
-    """)

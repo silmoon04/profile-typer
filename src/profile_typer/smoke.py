@@ -22,9 +22,9 @@ def main(argv: list[str] | None = None) -> int:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
     import PySide6
-    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtCore import QPoint, Qt, QEvent, QObject
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QWidget
     from profile_typer.qt_typer.window import TyperWindow, configure_application
     from profile_typer.typing_backends import PreviewTypingBackend
     from profile_typer.typing_document import TypingDocument
@@ -34,6 +34,16 @@ def main(argv: list[str] | None = None) -> int:
     args.output.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
     configure_application(app)
+    shown_windows = []
+
+    class WatchWindows(QObject):
+        def eventFilter(self, watched, event):
+            if event.type() == QEvent.Type.Show and isinstance(watched, QWidget) and watched.isWindow():
+                shown_windows.append(type(watched).__name__)
+            return False
+
+    watcher = WatchWindows()
+    app.installEventFilter(watcher)
     document = TypingDocument()
     document.load(Path(__file__).resolve().parent / "examples" / "typing-queue.json")
     backend = PreviewTypingBackend(speedup=50)
@@ -56,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
                 widgets.append(window.description_edit)
                 assert window.description_edit.height() >= 70
         if page == 1:
-            widgets.extend([window.list_view, window.up_button, window.down_button])
+            widgets.extend([window.list_view, window.organize_button])
         for widget in widgets:
             assert widget.isVisible(), f"{name}: {type(widget).__name__} hidden"
             point = widget.mapTo(window, QPoint(0, 0))
@@ -127,7 +137,9 @@ def main(argv: list[str] | None = None) -> int:
             available = window.screen().availableGeometry()
             assert window.width() <= available.width() / 2 + 20, "Windows snap did not reduce the width"
             check("windows-snap", 0)
+        assert all(name == "TyperWindow" for name in shown_windows), shown_windows
         report = {"passed": True, "qt_version": PySide6.__version__, "preview_exact_match": True,
+                  "unexpected_top_level_windows": 0,
                   "profile_id": recorded_profile().id, "profile_samples": dict(recorded_profile().timing["summary"]),
                   "view_field_counts": {"copies": document.field("task-id").copies, "types": document.field("task-id").types},
                   "cases": measurements, "state_history": list(window.session.history)}
@@ -140,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             app.processEvents()
             QTest.qWait(10)
         document.dirty = False
+        app.removeEventFilter(watcher)
         window.close()
     return 0
 

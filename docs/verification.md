@@ -23,6 +23,13 @@ the first release. The verification results below were obtained locally.
   options and custom answers, mixed legacy imports, save/load, ID collisions,
   row reflow, and scrolling only when content needs it. An X11 test clicks a
   field's Type button and verifies that only that field reaches the receiver.
+- Startup checks monitor top-level show events through opening, view navigation,
+  and resizing. They caught field action buttons appearing as separate windows.
+  The corrected renderer produces no unintended windows. Further checks cover
+  Save without a repeated file dialog, option-label clicks, and undo after navigation.
+- The portable Windows executable includes Python and Qt. Its packaged smoke
+  check runs outside the checkout with Python removed from PATH. Native desktop
+  interaction checks cover JSON import, navigation, and field actions.
 - The Wayland client is exercised against a private D-Bus portal fixture:
   permission ordering, keyboard-only selection, key-down/key-up pairs, session
   closure, and permission denial without sending any keys.

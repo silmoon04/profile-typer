@@ -7,6 +7,14 @@ from profile_typer.typing_queue import load_queue
 from profile_typer.view_schema import parse_views, dump_views, ViewFile
 
 
+def test_short_option_layout_defaults_and_explicit_columns_round_trip():
+    source = '{"views":[{"title":"Choice","rows":[[{"title":"A","options":["YES","NO"],"selected":"YES"}]]}]}'
+    parsed = parse_views(source)
+    assert parsed.entries[0].fields[0].option_columns == 2
+    explicit = parse_views(source.replace('"selected":"YES"', '"selected":"YES","option_columns":1'))
+    assert parse_views(dump_views(explicit)).entries[0].fields[0].option_columns == 1
+
+
 def example():
     return {"title": "Guide", "views": [
         {"id": "first", "title": "Repository", "color": "blue", "rows": [

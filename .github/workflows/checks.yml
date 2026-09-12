@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        python: ['3.11', '3.13']
+        python: ['3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,6 +24,13 @@ jobs:
       - run: python -m ruff check src tests scripts
       - run: profile-typer-check --output artifacts/windows-smoke
       - run: python -m build
+      - if: matrix.python == '3.12'
+        run: |
+          python -m pip install PyInstaller==6.22.2 PySide6-Essentials==6.9.3 pillow
+          python scripts/build_windows.py
+          $app = Get-ChildItem dist/windows/*/ProfileTyper/ProfileTyper.exe | Select-Object -First 1
+          $check = Start-Process -FilePath $app.FullName -ArgumentList '--check', "$pwd/artifacts/frozen-smoke" -Wait -PassThru -WindowStyle Hidden
+          if ($check.ExitCode -ne 0) { throw 'Packaged app check failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.python }}

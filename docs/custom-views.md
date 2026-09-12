@@ -57,7 +57,7 @@ options, and an A/B rubric is in `src/profile_typer/examples/views.json`.
 | Field `title` | The field label. It is not typed by the Type button. | Required |
 | Field `text` | Editable answer or reference text. `description` is also accepted. | Empty string |
 | Field `actions` | Which buttons to show: `copy`, `type`, both, or neither. | Both |
-| View or field `color` | Accent color for the heading or card. | Blue, or the view's color |
+| View or field `color` | Card highlight color on hover or focus. | Blue, or the view's color |
 | View or field `id` | Optional stable identifier. Omit it unless you need to refer to fields in another tool. | Generated |
 
 Use a row with two fields for A/B values, then a one-column row for the
@@ -96,13 +96,14 @@ Several selected options:
 }
 ```
 
-The app shows checked and unchecked options and a selected-count label.
+The app shows checked and unchecked options, with a count for multiple choices.
 `selected` must use the exact option labels. `multiple` defaults to false, and
-`option_columns` defaults to 1. A selected string or a one-item array is valid
+Short sets of up to three labels default to one row; other sets default to one
+column. Set `option_columns` explicitly to control this. A selected string or a one-item array is valid
 for a single-choice field.
 
 Copy and Type use the selected labels, one per line, in the order of `options`.
-**Edit answer text** lets you enter a custom value instead. A custom value
+**Custom text** lets you enter a custom value instead. A custom value
 clears the option selection; choosing an option again replaces the custom text.
 A custom answer can also be authored with `text` and an empty `selected` array.
 Do not provide both a nonempty custom text and selected options.
@@ -115,7 +116,7 @@ the field too.
 
 Use `blue`, `green`, `amber`, `red`, `purple`, `teal`, `orange`, `gray`, or a hex
 color such as `#315b82`. A field color overrides its view's color. The app uses
-light backgrounds and dark text so custom accents remain readable.
+light backgrounds and dark text so custom highlights remain readable.
 
 If a choice has no explicit field color, YES/PASS uses green, NO/FAIL uses red,
 and PARTIAL uses amber. Other choices use the view color. Colors are visual
@@ -132,6 +133,7 @@ only and never become part of copied or typed text.
 - Save JSON to preserve edits, selections, counters, and statuses. There is no
   background save of your answers. **More > Reset counters in this view** starts
   the current view's progress over. Duplicating a view also resets its counters.
+- Save updates the open file. Use **More > Save as** to write another copy.
 - Preview mode records preview actions. Its counts do not mean text reached
   another application.
 

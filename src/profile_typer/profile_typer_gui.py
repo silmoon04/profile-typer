@@ -13,7 +13,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("queue", nargs="?", type=Path, help="JSON file to open")
     parser.add_argument("--dry-run", action="store_true", help="preview typing without sending any keystrokes")
     parser.add_argument("--no-settings", action="store_true", help="use defaults without reading or saving preferences")
+    parser.add_argument("--check", type=Path, help="run preview and layout checks, writing results to this directory")
+    parser.add_argument("--check-native", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.check:
+        from .smoke import main as check
+        return check(["--output", str(args.check)] + (["--native"] if args.check_native else []))
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("silmoon04.ProfileTyper")
     try:
         from PySide6.QtCore import QSettings
         from PySide6.QtWidgets import QApplication
@@ -30,9 +38,9 @@ def main(argv: list[str] | None = None) -> int:
     configure_application(app)
     window = TyperWindow(backend=PreviewTypingBackend() if args.dry_run else default_backend(),
                          preferences=None if args.no_settings else QSettings("ProfileTyper", "ProfileTyper"))
-    show_on_screen(window)
     if args.queue:
         window.open_json(path=args.queue)
+    show_on_screen(window)
     return app.exec()
 
 

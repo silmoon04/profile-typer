@@ -206,8 +206,9 @@ def parse_views(source: str) -> ViewFile:
                 value = _text(raw.get("text", raw.get("description", "")), path + ".text")
                 if options and value and selected:
                     raise ValueError(f"{path}: use selected options or a custom text answer, not both.")
+                default_columns = len(options) if 1 <= len(options) <= 3 and all(len(option) <= 12 for option in options) else 1
                 fields.append(ViewField(field_id, field_title, value, options, tuple(selected), multiple,
-                                        _integer(raw.get("option_columns", 1), path + ".option_columns", 1, 4), tuple(actions),
+                                        _integer(raw.get("option_columns", default_columns), path + ".option_columns", 1, 4), tuple(actions),
                                         _color(raw.get("color"), path + ".color"),
                                         _integer(raw.get("copies", 0), path + ".copies"),
                                         _integer(raw.get("types", 0), path + ".types"),
@@ -253,8 +254,7 @@ def dump_views(document: ViewFile) -> str:
                             raw["text"] = field.text
                         if field.multiple:
                             raw["multiple"] = True
-                        if field.option_columns != 1:
-                            raw["option_columns"] = field.option_columns
+                        raw["option_columns"] = field.option_columns
                     else:
                         raw["text"] = field.text
                     if field.actions != ("copy", "type"):

@@ -1,0 +1,26 @@
+Profile Typer bundles the following dependencies in the Windows app.
+The application's MIT license does not replace these dependencies' licenses.
+
+Python 3.12: Python Software Foundation license and notices, included in licenses/Python.txt.
+Source: https://github.com/python/cpython/tree/v3.12.7
+
+Qt, PySide6, and Shiboken6 6.9.3: the open source distribution is used under LGPL v3.
+The LGPL and referenced GPL terms are included in licenses. Qt and the bindings are
+shared libraries in _internal and can be replaced with compatible builds.
+Source and build instructions:
+https://code.qt.io/cgit/qt/qtbase.git/tree/?h=v6.9.3
+https://code.qt.io/cgit/pyside/pyside-setup.git/tree/?h=v6.9.3
+https://doc.qt.io/qtforpython-6/building_from_source/index.html
+Qt third-party notices: https://doc.qt.io/qt-6/qtcore-attribution.html
+https://doc.qt.io/qt-6/qtgui-attribution.html
+
+PyInstaller: GPL with the bootloader exception. Its license files are copied from
+the build environment into licenses/PyInstaller.
+Source: https://github.com/pyinstaller/pyinstaller
+
+Space Grotesk and Space Mono: SIL Open Font License 1.1. Copyright and license
+notices are included beside the fonts in _internal/profile_typer/assets/fonts.
+Sources: https://github.com/floriankarsten/space-grotesk
+https://github.com/googlefonts/spacemono
+
+The Profile Typer icon is an original vector asset under the application's MIT license.

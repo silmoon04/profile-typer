@@ -29,6 +29,14 @@ def show_on_screen(window, screen=None):
     window.setScreen(screen)
     _fit(window, screen, center=True)
     window.showNormal()
+    if app.platformName() == "windows":
+        import ctypes
+        from ctypes import wintypes
+        setter = ctypes.windll.dwmapi.DwmSetWindowAttribute
+        setter.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+        for attribute, color in ((35, 0x001f2320), (36, 0x00e9f2f4)):
+            value = wintypes.DWORD(color)
+            setter(int(window.winId()), attribute, ctypes.byref(value), ctypes.sizeof(value))
     _fit(window, screen, center=True)
     window.raise_()
     window.activateWindow()

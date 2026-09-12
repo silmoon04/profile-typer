@@ -30,7 +30,7 @@ def main():
             launcher.write_text(f"#!/usr/bin/python3\nfrom profile_typer.{module} import main\nraise SystemExit(main())\n")
             launcher.chmod(0o755)
         for source, destination in (("packaging/io.github.silmoon04.ProfileTyper.desktop", "usr/share/applications/io.github.silmoon04.ProfileTyper.desktop"),
-                                    ("packaging/profile-typer.svg", "usr/share/icons/hicolor/scalable/apps/profile-typer.svg"),
+                                    ("src/profile_typer/assets/profile-typer.svg", "usr/share/icons/hicolor/scalable/apps/profile-typer.svg"),
                                     ("LICENSE", "usr/share/doc/profile-typer/copyright"),
                                     ("README.md", "usr/share/doc/profile-typer/README.md")):
             target = stage / destination

@@ -267,7 +267,7 @@ class ProfileTyperGuiTests(unittest.TestCase):
             self.assertEqual(self.window.description_edit.toPlainText(), "café 👋\n\n")
             saved = Path(directory) / "saved.json"
             with patch("profile_typer.qt_typer.window.QFileDialog.getSaveFileName", return_value=(str(saved), "")):
-                self.assertTrue(self.window.save_json())
+                self.assertTrue(self.window.save_json(save_as=True))
             self.assertEqual(load_queue(saved), [TypingItem("hello", "café 👋\n\n")])
             path.write_text("{", encoding="utf-8")
             with patch.object(QMessageBox, "warning") as warning:
@@ -289,6 +289,18 @@ class ProfileTyperGuiTests(unittest.TestCase):
             extra.close()
             extra.deleteLater()
             self.assertEqual(float(preferences.value("wpm")), 84.5)
+
+    def test_save_updates_open_file_without_another_file_dialog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "queue.json"
+            path.write_text('{"title":"one","description":"before"}', encoding="utf-8")
+            self.window.open_json(path=path)
+            self.window.description_edit.setPlainText("after")
+            with patch("profile_typer.qt_typer.window.QFileDialog.getSaveFileName") as dialog:
+                self.assertTrue(self.window.save_json())
+                dialog.assert_not_called()
+            self.assertEqual(load_queue(path)[0].description, "after")
+            self.assertFalse(self.window.document.dirty)
 
     def test_upgrade_replaces_generic_defaults_once(self):
         with tempfile.TemporaryDirectory() as directory:

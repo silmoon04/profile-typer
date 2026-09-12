@@ -49,7 +49,7 @@ def test_copy_counter_and_exact_clipboard_value(window):
     QTest.mouseClick(card.copy_button, Qt.MouseButton.LeftButton)
     QTest.mouseClick(card.copy_button, Qt.MouseButton.LeftButton)
     assert QApplication.clipboard().text() == "https://example.org"
-    assert card.copy_count.text() == "2"
+    assert card.copy_button.text() == "Copied 2"
     assert window.document.field("task").copies == 0
     assert not card.type_button.isVisible()
 
@@ -98,14 +98,14 @@ def test_field_type_uses_its_value_and_stays_in_view(window):
     assert window.backend.output == "hello\n\n"
     assert window.document.selected_id == "repo"
     assert window.document.field("task").status == "Done"
-    assert card.type_count.text() == "1"
+    assert card.type_button.text() == "Type 1"
 
 
 def test_options_toggle_and_custom_answer(window):
     card = window.view_editor.cards["options"]
     QTest.mouseClick(card.option_buttons[2], Qt.MouseButton.LeftButton)
     assert window.document.field("options").value == "One\nTwo\nThree"
-    assert card.selected_label.text() == "3 / 3 selected"
+    assert card.selected_label.text() == "3 selected"
     card.edit_answer_button.click()
     card.editor.setPlainText("custom value")
     assert window.document.field("options").value == "custom value"
@@ -125,6 +125,30 @@ def test_edits_survive_navigation_and_keep_undo_cursor(window):
     window.navigate(1)
     window.navigate(-1)
     assert window.view_editor.cards["task"].editor.toPlainText() == "new text\n"
+
+
+def test_navigation_preserves_editor_selection_and_undo_history(window):
+    editor = window.view_editor.cards["task"].editor
+    editor.setFocus()
+    editor.selectAll()
+    QTest.keyClicks(editor, "draft")
+    cursor = editor.textCursor()
+    cursor.setPosition(1)
+    cursor.setPosition(4, cursor.MoveMode.KeepAnchor)
+    editor.setTextCursor(cursor)
+    window.navigate(1)
+    window.navigate(-1)
+    restored = window.view_editor.cards["task"].editor
+    assert restored.textCursor().selectedText() == "raf"
+    restored.undo()
+    assert window.document.field("task").value == "hello\n\n"
+
+
+def test_option_label_click_selects_without_copying(window):
+    card = window.view_editor.cards["options"]
+    QTest.mouseClick(card.option_labels[2], Qt.MouseButton.LeftButton)
+    assert window.document.field("options").selected == ("One", "Two", "Three")
+    assert window.document.field("options").copies == 0
 
 
 def test_rows_reflow_and_scrollbars_only_appear_when_needed(window):
@@ -156,6 +180,37 @@ def test_long_text_and_markup_are_plain_editable_content(window):
     QTest.qWait(100)
     assert window.view_editor.cards["task"].editor.toPlainText() == text
     assert window.view_editor.horizontalScrollBar().maximum() == 0
+
+
+def test_field_header_wraps_title_and_keeps_actions_inside_card(window):
+    window.document.paste(json.dumps({"views": [{"title": "Long labels", "rows": [[{
+        "id": "long", "title": "A long title that needs several lines in a narrow window", "text": "Answer"
+    }]]}]}))
+    window.refresh()
+    window.resize(380, 500)
+    QApplication.processEvents()
+    QTest.qWait(100)
+    card = window.view_editor.cards["long"]
+    assert card.title_label.height() >= 2 * card.title_label.fontMetrics().height()
+    assert card.title_label.x() + card.title_label.width() <= card.copy_button.x()
+    assert card.type_button.x() + card.type_button.width() < card.width()
+    assert window.view_editor.horizontalScrollBar().maximum() == 0
+
+
+def test_short_choices_share_row_and_hide_single_choice_count(window):
+    window.document.paste(json.dumps({"views": [{"title": "Choice", "rows": [[{
+        "id": "choice", "title": "A", "options": ["YES", "NO"], "selected": "YES"
+    }]]}]}))
+    window.refresh()
+    QApplication.processEvents()
+    QTest.qWait(50)
+    card = window.view_editor.cards["choice"]
+    assert card.option_grid.effective_columns == 2
+    assert not card.selected_label.isVisible()
+    assert abs(card.title_label.y() - card.copy_button.y()) < card.copy_button.height()
+    card.option_labels[0].setFocus()
+    QApplication.processEvents()
+    assert card.property("active") is True
 
 
 def test_reopening_same_ids_refreshes_layout_and_labels(window, tmp_path):
