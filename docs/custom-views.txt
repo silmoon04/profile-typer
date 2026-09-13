@@ -118,8 +118,8 @@ the installed package, or `src/profile_typer/examples/groups.json` in source.
 | Field `actions` | Which buttons to show: `copy`, `type`, both, or neither. | Both |
 | Field `display` | `all` shows every option; `selected` shows chosen values with a Change action. | `all` |
 | Field `custom_text` | Allow a custom answer alongside an option list. | `false` |
-| Field `tone` | Stable tint: `a`, `b`, `statement`, `reason`, or `neutral`. | Inferred A/B pairing, otherwise neutral |
-| View or field `color` | Card highlight color on hover or focus. | Blue, or the view's color |
+| Field `tone` | Explicit stable tint: `a`, `b`, `statement`, `reason`, or `neutral`. | Inherit the view/group color |
+| View or field `color` | Card tint, inherited from the group or view when omitted. | Blue |
 | View or field `id` | Optional stable identifier. Omit it unless you need to refer to fields in another tool. | Generated |
 
 Use a row with two fields for A/B values, then a one-column row for the
@@ -161,8 +161,8 @@ Several selected options:
 
 The app shows checked and unchecked options, with a count for multiple choices.
 `selected` must use the exact option labels. `multiple` defaults to false, and
-Short sets of up to five labels default to one row; other sets default to one
-column. Set `option_columns` explicitly to control this. A selected string or a one-item array is valid
+Options flow onto as many lines as needed. The renderer measures each label,
+control, gap, and padding in the active font. A selected string or a one-item array is valid
 for a single-choice field.
 
 Copy and Type use the selected labels, one per line, in the order of `options`.
@@ -178,7 +178,9 @@ For long lists such as a source category, use `"display": "selected"`. Only
 the selected labels appear until you click Change. Done collapses the list
 again. An empty selection shows all options so you can choose an answer.
 Hidden choices are retained in the file and are never included in copied or
-typed output. `option_columns` supports 1 to 5 columns.
+typed output. Old `option_columns` values are accepted and preserved for file
+compatibility, but no longer force a column limit. Available width determines
+wrapping. Row `columns` still controls the layout of field cards.
 
 Option labels remain selectable text. You can highlight part of a label and
 copy that selection with Ctrl+C or the context menu. That copy is counted for
@@ -194,12 +196,13 @@ Selected YES/PASS options use green, NO/FAIL use red, and PARTIAL uses amber.
 Ascending numeric scales shade the selected value from red at the low end to
 green at the high end. Unselected options stay neutral.
 
-When sibling fields contain standalone A and B labels, they receive consistent
-blue and purple tints. This also works for titles such as `Trajectory A` and
-`Trajectory B`. A letter inside another word does not count. Use `tone` to
-set or override this explicitly; `neutral` disables the inferred tint.
-Use `statement` and `reason` tones to separate long rubric text by shade.
-An explicit field `color` overrides its tone. All colors are visual and never
+Card colors do not depend on A/B labels or which option is selected. The base
+tint comes from field color, group color, then view color, with blue as the
+fallback. An explicit `tone` overrides that inherited tint; `neutral` requests
+plain paper. Use `statement` and `reason` tones to distinguish prose fields,
+or `a` and `b` only if you intentionally want blue and purple cards.
+Option selection colors stay inside the choice, keeping the card stable.
+All colors are visual and never
 become part of copied or typed text.
 
 ## Counters and progress
@@ -208,6 +211,7 @@ become part of copied or typed text.
   Ctrl+C or the context menu. A field's Copy button always copies its full answer.
 - The pencil icon counts accepted typing starts. A cancelled countdown still
   counts as a start; **Stopped** or **Failed** distinguishes it from **Done**.
+- Zero counts are hidden. Copy and Type show a number after their first use.
 - Editing an answer after using it marks the field **Edited**. Counts remain
   cumulative so you can see how often you have used the field.
 - Save JSON to preserve edits, selections, counters, and statuses. There is no

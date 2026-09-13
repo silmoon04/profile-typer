@@ -123,7 +123,7 @@ def test_grouped_choices_compact_display_and_equal_card_heights(window):
     QTest.qWait(100)
     a, b = window.document.selected.rows[0].fields
     card_a, card_b = window.view_editor.cards[a.id], window.view_editor.cards[b.id]
-    assert card_a.tone == "a" and card_b.tone == "b"
+    assert card_a.background_color == card_b.background_color
     assert not card_a.edit_answer_button.isVisible()
     assert card_a.option_grid.effective_columns == 5
     assert card_a.height() == card_b.height()
@@ -156,6 +156,40 @@ def test_grouped_choices_compact_display_and_equal_card_heights(window):
         QApplication.processEvents()
         QTest.qWait(70)
         assert window.view_editor.horizontalScrollBar().maximum() == 0
+
+
+def test_measured_choices_fit_old_column_hints_and_wrap_when_needed(window):
+    from profile_typer.qt_typer.choice_layout import ChoiceLayout
+    window.document.paste(json.dumps({"views": [{"title": "Old input", "color": "blue", "rows": [
+        {"columns": 2, "fields": [
+            {"id": "a", "title": "Trajectory A", "options": ["PASS", "PARTIAL", "FAIL"], "selected": "PASS", "option_columns": 2},
+            {"id": "b", "title": "Trajectory B", "options": ["1", "2", "3", "4", "5"], "selected": "3", "option_columns": 3},
+        ]}, {"fields": [{"id": "source", "title": "Rubric source", "text": "Repository evidence"}]}]}]}))
+    window.refresh()
+    for width in (1220, 900, 420, 1220):
+        window.resize(width, 800)
+        QApplication.processEvents()
+        QTest.qWait(80)
+        for identity in ("a", "b"):
+            card = window.view_editor.cards[identity]
+            required = sum(ChoiceLayout.natural_width(row) for row in card.option_rows) + 6 * (len(card.option_rows) - 1)
+            if required <= card.option_grid.width():
+                assert len({row.y() for row in card.option_rows}) == 1
+            for row in card.option_rows:
+                assert row.x() + row.width() <= card.option_grid.width()
+                margins = row.layout().contentsMargins()
+                assert margins.left() >= 10 and margins.top() >= 6
+        assert window.view_editor.horizontalScrollBar().maximum() == 0
+    a, b, source = [window.view_editor.cards[identity] for identity in ("a", "b", "source")]
+    assert a.background_color == b.background_color == source.background_color
+    assert source.background_color != "#fffef9"
+    a.option_buttons[2].click()
+    assert a.background_color == source.background_color
+    assert source.copy_button.text() == "Copy"
+    assert source.type_button.text() == "Type"
+    source.copy_button.click()
+    assert source.copy_button.text() == "Copied 1"
+    assert source.type_button.text() == "Type"
 
 
 def test_edits_survive_navigation_and_keep_undo_cursor(window):

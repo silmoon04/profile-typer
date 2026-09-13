@@ -7,7 +7,8 @@ The source distribution includes the author's validated aggregate typing profile
 | --- | --- |
 | `typing_document.py` | Queue identities, edits, selection, locking, and atomic JSON saves. |
 | `view_schema.py` | Validated custom views, rows, fields, options, colors, and legacy-format compatibility. |
-| `qt_typer/field_style.py` | A/B presentation hints and selected-choice colors, independent of answer values. |
+| `qt_typer/field_style.py` | Explicit card tones and selected-choice colors. |
+| `qt_typer/choice_layout.py` | Font-aware choice wrapping, including indicator size, spacing, and padding. |
 | `typing_session.py` | Permission preparation, countdown, worker lifetime, progress, cancellation, completion, and failure. |
 | `engine.py` | Shared recorded-cadence replay with interruptible waits. Accepts an input port, random generator, and clock. |
 | `profiles.py`, `data/silmoon04.json` | Bundled recording aggregates and schema validation. Missing or invalid data fails visibly instead of selecting generic timing. |

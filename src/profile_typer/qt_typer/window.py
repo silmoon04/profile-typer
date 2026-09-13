@@ -512,8 +512,8 @@ class TyperWindow(QMainWindow):
             stats = f"silmoon04 · {len(text):,} characters · {len(text.split()):,} words"
             self.stats_label.setText(stats)
             self.stats_label.setToolTip(stats)
-            self.legacy_copies.setText(str(entry.copies))
-            self.legacy_types.setText(str(entry.types))
+            self.legacy_copies.setText(str(entry.copies) if entry.copies else "")
+            self.legacy_types.setText(str(entry.types) if entry.types else "")
             filename = self.document.path.name if self.document.path else (self.document.title if self.document.custom else "Unsaved queue")
             self.file_label.setText(filename + (" *" if self.document.dirty else ""))
             self.file_label.setToolTip(str(self.document.path or "Unsaved queue"))

@@ -1,6 +1,6 @@
 # Windows app
 
-Download `ProfileTyper-0.5.0-windows-x64.zip` from the releases page. Extract the
+Download `ProfileTyper-0.5.1-windows-x64.zip` from the releases page. Extract the
 whole folder, then double-click **ProfileTyper.exe**. Python is included. Keep
 the `_internal` folder beside the executable; it contains Qt, the fonts, and
 the recorded typing profile.
@@ -22,7 +22,7 @@ python -m venv .build-venv
 .\.build-venv\Scripts\python.exe scripts/build_windows.py
 ```
 
-The output is a folder in `dist/windows/0.5.0/ProfileTyper` and a ZIP in `dist`.
+The output is a folder in `dist/windows/0.5.1/ProfileTyper` and a ZIP in `dist`.
 The build includes notices and license texts. Dependencies remain separate
 shared libraries. `scripts/build_icons.py` regenerates PNG and ICO files from
 the SVG masters when the icon changes.
@@ -30,7 +30,7 @@ the SVG masters when the icon changes.
 ## Check the packaged app
 
 ```powershell
-.\dist\windows\0.5.0\ProfileTyper\ProfileTyper.exe --check C:\Temp\profile-typer-check
+.\dist\windows\0.5.1\ProfileTyper\ProfileTyper.exe --check C:\Temp\profile-typer-check
 ```
 
 This writes a result JSON and screenshots, using preview delivery. Add

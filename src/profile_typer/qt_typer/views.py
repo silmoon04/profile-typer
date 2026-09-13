@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
 
 from profile_typer.view_schema import COLORS
 from .theme import ASSETS, MUTED
-from .field_style import TONES, comparison_tones, choice_color
+from .field_style import TONES, choice_color
+from .choice_layout import ChoiceRow
 
 
 @lru_cache(maxsize=2)
@@ -219,21 +220,19 @@ class FieldCard(QFrame):
         layout.addLayout(header)
         self._copy_feedback = QTimer(self)
         self._copy_feedback.setSingleShot(True)
-        self._copy_feedback.timeout.connect(lambda: self.copy_button.setText(f"Copy {self._copies}"))
+        self._copy_feedback.timeout.connect(lambda: self.copy_button.setText(self._counted("Copy", self._copies)))
         self.option_buttons = []
         self.option_labels = []
         self.option_rows = []
         self.option_grid = None
         if field.options:
-            short_options = all(len(option) <= 12 for option in field.options)
-            numeric = all(option.isdigit() for option in field.options)
-            self.option_grid = ResponsiveRow(field.option_columns, minimum=40 if numeric else 72 if short_options else 165)
+            self.option_grid = ChoiceRow()
             for index, option in enumerate(field.options):
                 row = QWidget()
                 row.setObjectName("choice")
                 option_layout = QHBoxLayout(row)
-                option_layout.setContentsMargins(4, 3, 4, 3)
-                option_layout.setSpacing(4)
+                option_layout.setContentsMargins(10, 6, 10, 6)
+                option_layout.setSpacing(8)
                 button = QCheckBox() if field.multiple else QRadioButton()
                 if isinstance(button, QRadioButton):
                     button.setAutoExclusive(False)
@@ -302,8 +301,12 @@ class FieldCard(QFrame):
         self.change_options.setText("Done" if self.change_options.isChecked() else "Change")
 
     def show_copy_feedback(self):
-        self.copy_button.setText(f"Copied {self._copies}")
+        self.copy_button.setText(self._counted("Copied", self._copies))
         self._copy_feedback.start(1000)
+
+    @staticmethod
+    def _counted(label, count):
+        return f"{label} {count}" if count else label
 
     def set_active(self, active):
         if self.property("active") != active:
@@ -336,8 +339,8 @@ class FieldCard(QFrame):
                 self._refresh_choices()
             self.editor.setReadOnly(busy)
             self._copies = field.copies
-            self.copy_button.setText(f"{'Copied' if self._copy_feedback.isActive() else 'Copy'} {field.copies}")
-            self.type_button.setText(f"Type {field.types}")
+            self.copy_button.setText(self._counted("Copied" if self._copy_feedback.isActive() else "Copy", field.copies))
+            self.type_button.setText(self._counted("Type", field.types))
             self.copy_button.setFixedWidth(max(96, self.copy_button.fontMetrics().horizontalAdvance(f"Copied {field.copies}") + 36))
             self.type_button.setFixedWidth(max(92, self.type_button.fontMetrics().horizontalAdvance(f"Type {field.types}") + 36))
             self.copy_button.setToolTip(f"{field.copies} copy actions. Copy the full answer; selected text can also be copied.")
@@ -351,13 +354,10 @@ class FieldCard(QFrame):
             self.status_label.setStyleSheet(f"color: {'#8a4b17' if field.status == 'Edited' else MUTED}; font-size: 11px;")
             self.status_label.setToolTip("Edited means the answer changed after an earlier action. Counts are action totals.")
             color = field.color
-            if color is None and field.options and len(field.selected) == 1:
-                color = {"yes": "green", "pass": "green", "no": "red", "fail": "red", "partial": "amber"}.get(field.selected[0].lower())
             accent = QColor(COLORS.get(color or self.view_color or "blue", color or self.view_color or "#2563eb"))
             wash = QColor(*(round(component * 0.09 + 255 * 0.91) for component in (accent.red(), accent.green(), accent.blue())))
-            background = TONES.get(field.tone or self.tone, "#fffef9")
-            if field.color:
-                background = wash.name()
+            background = TONES.get(field.tone or self.tone, wash.name())
+            self.background_color = background
             self.setStyleSheet(
                 f"QFrame#field-card {{ border: 1px solid #b2b9a6; border-radius: 2px; background: {background}; }}"
                 f"QFrame#field-card:hover, QFrame#field-card[active=\"true\"] {{ border-color: #626b53; background: {wash.name()}; }}"
@@ -453,10 +453,9 @@ class ViewEditor(QScrollArea):
                             group_layout.addWidget(heading)
                             layout.addWidget(box)
                     row_widget = ResponsiveRow(row.columns)
-                    tones = comparison_tones(row.fields)
                     for field in row.fields:
                         card = FieldCard(field, row.group_color or entry.color, edited=self._edit, selected=self._select,
-                                         copied=self.copy_field, typed=self.type_field, cursor_visible=self._show_cursor, tone=tones[field.id])
+                                         copied=self.copy_field, typed=self.type_field, cursor_visible=self._show_cursor)
                         self.cards[field.id] = card
                         row_widget.add(card)
                     self.rows.append(row_widget)

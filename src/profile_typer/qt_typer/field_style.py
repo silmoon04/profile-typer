@@ -1,17 +1,9 @@
-"""Presentation hints for comparisons and scored choices."""
-import re
+"""Explicit card tones and selected-choice colors."""
 import math
 
 from PySide6.QtGui import QColor
 
 TONES = {"a": "#edf3fc", "b": "#f3edfa", "statement": "#f1f1df", "reason": "#f5f3ec", "neutral": "#fffef9"}
-
-
-def comparison_tones(fields):
-    sides = [next(iter(re.findall(r"(?<!\w)[AB](?!\w)", field.title)), None) for field in fields]
-    paired = "A" in sides and "B" in sides
-    return {field.id: field.tone or (side.lower() if paired and side else None)
-            for field, side in zip(fields, sides, strict=True)}
 
 
 def choice_color(options, option):
