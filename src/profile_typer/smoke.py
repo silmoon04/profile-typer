@@ -111,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
             QTest.qWait(10)
         assert document.selected_id == first_view_id
         assert document.field("task-id").copies == document.field("task-id").types == 1
+        view_counts = {"copies": document.field("task-id").copies, "types": document.field("task-id").types}
         assert backend.output == document.field("task-id").value
         document.navigate(2)
         window.refresh()
@@ -119,6 +120,16 @@ def main(argv: list[str] | None = None) -> int:
         check("views-compact", 0)
         assert window.view_editor.verticalScrollBar().maximum() > 0
         assert all(row.effective_columns == 1 for row in window.view_editor.rows)
+        document.load(Path(__file__).resolve().parent / "examples" / "groups.json")
+        window.refresh()
+        window.resize(1100, 1000)
+        check("groups-wide", 0)
+        assert not next(iter(window.view_editor.cards.values())).edit_answer_button.isVisible()
+        document.navigate(1)
+        window.refresh()
+        check("groups-rubrics", 0)
+        window.resize(380, 420)
+        check("groups-compact", 0)
         if args.snap:
             from profile_typer.platforms.win32_input import _user32, ensure_modifiers_released, focus_window
             window.resize(1000, 720)
@@ -141,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         report = {"passed": True, "qt_version": PySide6.__version__, "preview_exact_match": True,
                   "unexpected_top_level_windows": 0,
                   "profile_id": recorded_profile().id, "profile_samples": dict(recorded_profile().timing["summary"]),
-                  "view_field_counts": {"copies": document.field("task-id").copies, "types": document.field("task-id").types},
+                  "view_field_counts": view_counts,
                   "cases": measurements, "state_history": list(window.session.history)}
         (args.output / "result.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report))

@@ -27,6 +27,11 @@ the first release. The verification results below were obtained locally.
   and resizing. They caught field action buttons appearing as separate windows.
   The corrected renderer produces no unintended windows. Further checks cover
   Save without a repeated file dialog, option-label clicks, and undo after navigation.
+- Group checks cover preset expansion, dictionary shorthand, save/reload,
+  duplicate and append isolation, selected-only choices, equal card heights,
+  ratings, A/B tones, and narrow layouts. A fixed-seed replay at 120 and 150 WPM
+  verifies the same correction sequence and faster measured timing at 150.
+  Time-left checks use an injected clock and verify cancellation clears the estimate.
 - The portable Windows executable includes Python and Qt. Its packaged smoke
   check runs outside the checkout with Python removed from PATH. Native desktop
   interaction checks cover JSON import, navigation, and field actions.

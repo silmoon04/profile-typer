@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "title": "Grouped review",
+  "presets": {
+    "rating": {"options": ["1", "2", "3", "4", "5"]},
+    "yes-no": {"options": ["YES", "NO"]},
+    "source": {"options": ["Explicit prompt", "Repository evidence", "Engineering knowledge"], "display": "selected", "actions": ["copy"]},
+    "statement": {"tone": "statement"},
+    "reason": {"tone": "reason"}
+  },
+  "views": [
+    {
+      "title": "Dimensions",
+      "groups": {
+        "Dimension 1: Design": [
+          {"columns": 2, "fields": {"A": {"use": "rating", "selected": "2"}, "B": {"use": "rating", "selected": "4"}}},
+          {"fields": {"Rationale": {"use": "reason", "text": "Compare the two approaches here."}}}
+        ],
+        "Dimension 2: Testing": [
+          {"columns": 2, "fields": {"A": {"use": "rating", "selected": "3"}, "B": {"use": "rating", "selected": "5"}}},
+          {"fields": {"Rationale": {"use": "reason", "text": "Describe the test coverage."}}}
+        ],
+        "Dimension 3: Communication": [
+          {"columns": 2, "fields": {"A": {"use": "rating", "selected": "3"}, "B": {"use": "rating", "selected": "4"}}},
+          {"fields": {"Rationale": {"use": "reason", "text": "Explain the difference in clarity."}}}
+        ]
+      }
+    },
+    {
+      "title": "Rubrics",
+      "groups": {
+        "Rubric 1": [
+          {"fields": {"Statement": {"use": "statement", "text": "Existing behaviour is preserved."}}},
+          {"columns": 2, "fields": {"Dimension": "Design", "Source": {"use": "source", "selected": "Explicit prompt"}}},
+          {"columns": 2, "fields": {"A": {"use": "yes-no", "selected": "NO"}, "B": {"use": "yes-no", "selected": "YES"}}},
+          {"fields": {"Evidence and reason": {"use": "reason", "text": "Explain the observed behaviour."}}}
+        ],
+        "Rubric 2": [
+          {"fields": {"Statement": {"use": "statement", "text": "The tests cover invalid input."}}},
+          {"columns": 2, "fields": {"Dimension": "Testing", "Source": {"use": "source", "selected": "Repository evidence"}}},
+          {"columns": 2, "fields": {"A": {"use": "yes-no", "selected": "YES"}, "B": {"use": "yes-no", "selected": "YES"}}},
+          {"fields": {"Evidence and reason": {"use": "reason", "text": "Record the relevant tests."}}}
+        ]
+      }
+    }
+  ]
+}

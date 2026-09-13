@@ -25,7 +25,7 @@ class TypingSettings:
     advance: bool = True
 
     def validate(self) -> None:
-        for label, value, low, high in (("Speed", self.wpm, 15, 120), ("Corrections", self.corrections, 0, 2),
+        for label, value, low, high in (("Speed", self.wpm, 15, 150), ("Corrections", self.corrections, 0, 2),
                                         ("Variation", self.variation, 0, 150), ("Start delay", self.delay, 0, 60)):
             if not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f"{label} must be between {low:g} and {high:g}.")
@@ -57,6 +57,7 @@ class TypingSession:
         self.phase = Phase.READY
         self.message = "Ready. Open a queue or enter a description."
         self.progress = 0.0
+        self.remaining_seconds: float | None = None
         self.details = ""
         self.history: deque[str] = deque(maxlen=100)
         self._events: queue.SimpleQueue[tuple[str, Any]] = queue.SimpleQueue()
@@ -85,6 +86,8 @@ class TypingSession:
         self._outcome = None
         self._worker = None
         self.progress = 0
+        self.remaining_seconds = len(self._entry.description) * 12 / settings.wpm
+        self._completed_actions = self._total_actions = 0
         self.details = ""
         if getattr(self.backend, "requires_preparation", False):
             self._transition(Phase.PREPARING, "Allow keyboard access in the desktop dialog. The countdown starts after permission.")
@@ -116,6 +119,7 @@ class TypingSession:
             self._transition(Phase.STOPPING, "Stopping. Waiting for the typing worker to finish.")
 
     def _launch(self) -> None:
+        self._typing_started = self.clock()
         self.document.set_run_status(self._entry.id, "Typing")
         self._transition(Phase.TYPING, getattr(self.backend, "desktop_note", "Typing the selected description."))
         text, target, settings, stop, events = self._entry.description, self._target, self._settings, self._stop, self._events
@@ -165,10 +169,15 @@ class TypingSession:
                 break
             if kind == "progress" and self.phase == Phase.TYPING:
                 done, total, wpm, corrections = payload
+                self._completed_actions, self._total_actions = done, total
                 self.progress = min(100, max(0, 100 * done / max(total, 1)))
                 self.message = f"Typing: {done}/{total} actions · {wpm:.0f} WPM · {corrections} corrections"
             elif kind in ("result", "error", "prepared"):
                 self._outcome = (kind, payload)
+        if self.phase == Phase.TYPING and self._completed_actions:
+            elapsed = max(0, self.clock() - self._typing_started)
+            if elapsed:
+                self.remaining_seconds = max(0, elapsed * (self._total_actions - self._completed_actions) / self._completed_actions)
         if self._outcome is not None and self._worker is not None and not self._worker.is_alive():
             kind, payload = self._outcome
             self._outcome = None
@@ -189,5 +198,6 @@ class TypingSession:
                 self._finish(Phase.DONE, f"Done: {payload.keystrokes} keystrokes · {payload.net_wpm:g} WPM · {payload.typed_seconds:g}s")
 
     def _finish(self, phase: Phase, message: str) -> None:
+        self.remaining_seconds = 0 if phase == Phase.DONE else None
         self.document.finish_run(self._entry.id, phase.value, advance=self._settings.advance)
         self._transition(phase, message)

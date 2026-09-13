@@ -27,6 +27,9 @@ class ViewField:
     copies: int = 0
     types: int = 0
     status: str = "Ready"
+    display: str = "all"
+    custom_text: bool = False
+    tone: str | None = None
 
     @property
     def value(self):
@@ -37,6 +40,8 @@ class ViewField:
 class ViewRow:
     columns: int
     fields: tuple[ViewField, ...]
+    group: str | None = None
+    group_color: str | None = None
 
 
 @dataclass(frozen=True)
@@ -145,9 +150,16 @@ def parse_views(source: str) -> ViewFile:
                                       types=_integer(raw.get("types", 0), where + ".types")))
         return ViewFile(tuple(entries))
 
-    _keys(data, {"schema_version", "title", "views"}, "document")
-    if type(data.get("schema_version", 1)) is not int or data.get("schema_version", 1) != 1:
-        raise ValueError("Unsupported view schema_version; use 1.")
+    _keys(data, {"schema_version", "title", "views", "presets"}, "document")
+    if type(data.get("schema_version", 1)) is not int or data.get("schema_version", 1) not in (1, 2):
+        raise ValueError("Unsupported view schema_version; use 1 or 2.")
+    presets = data.get("presets", {})
+    if not isinstance(presets, dict) or len(presets) > 100:
+        raise ValueError("presets must be a dictionary with at most 100 entries.")
+    preset_keys = {"text", "description", "options", "selected", "multiple", "option_columns", "actions", "color", "display", "custom_text", "tone"}
+    for name, preset in presets.items():
+        _text(name, "preset name", nonempty=True)
+        _keys(preset, preset_keys, f"presets.{name}")
     title = _text(data.get("title", "Typing views"), "document.title", nonempty=True)
     views = data["views"]
     if not isinstance(views, list) or not 1 <= len(views) <= 500:
@@ -156,20 +168,50 @@ def parse_views(source: str) -> ViewFile:
     field_count = 0
     for vi, raw_view in enumerate(views):
         where = f"views[{vi}]"
-        _keys(raw_view, {"id", "title", "rows", "color"}, where)
+        _keys(raw_view, {"id", "title", "rows", "groups", "color"}, where)
         view_id = identity(raw_view, where)
         view_title = _text(raw_view.get("title"), where + ".title", nonempty=True)
-        raw_rows = raw_view.get("rows")
+        if "groups" in raw_view and "rows" in raw_view:
+            raise ValueError(f"{where}: use groups or rows, not both.")
+        grouped = []
+        if "groups" in raw_view:
+            groups = raw_view["groups"]
+            if isinstance(groups, dict):
+                groups = [dict(value, title=name) if isinstance(value, dict) else {"title": name, "rows": value}
+                          for name, value in groups.items()]
+            if not isinstance(groups, list) or not 1 <= len(groups) <= 100:
+                raise ValueError(f"{where}.groups must contain 1 to 100 named groups.")
+            group_names = set()
+            for gi, group in enumerate(groups):
+                path = f"{where}.groups[{gi}]"
+                _keys(group, {"title", "rows", "color"}, path)
+                name = _text(group.get("title"), path + ".title", nonempty=True)
+                if name in group_names:
+                    raise ValueError(f"{where}: duplicate group name {name!r}.")
+                group_names.add(name)
+                color = _color(group.get("color"), path + ".color")
+                group_rows = group.get("rows")
+                if not isinstance(group_rows, list) or not group_rows:
+                    raise ValueError(f"{path}.rows must be a nonempty array.")
+                grouped.extend((row, name, color) for row in group_rows)
+        else:
+            raw_rows = raw_view.get("rows")
+            if isinstance(raw_rows, list):
+                grouped = [(row, None, None) for row in raw_rows]
+        raw_rows = grouped
         if not isinstance(raw_rows, list) or not 1 <= len(raw_rows) <= 100:
             raise ValueError(f"{where}.rows must contain 1 to 100 rows.")
         rows = []
-        for ri, raw_row in enumerate(raw_rows):
+        for ri, (raw_row, group_name, group_color) in enumerate(raw_rows):
             row_path = f"{where}.rows[{ri}]"
             if isinstance(raw_row, list):
                 raw_row = {"fields": raw_row, "columns": min(4, len(raw_row))}
             _keys(raw_row, {"columns", "fields"}, row_path)
             columns = _integer(raw_row.get("columns", 1), row_path + ".columns", 1, 4)
             raw_fields = raw_row.get("fields")
+            if isinstance(raw_fields, dict):
+                raw_fields = [dict(value, title=name) if isinstance(value, dict) else {"title": name, "text": value}
+                              for name, value in raw_fields.items()]
             if not isinstance(raw_fields, list) or not 1 <= len(raw_fields) <= 100:
                 raise ValueError(f"{row_path}.fields must contain 1 to 100 fields.")
             fields = []
@@ -178,8 +220,12 @@ def parse_views(source: str) -> ViewFile:
                 if field_count > 5000:
                     raise ValueError("A view document can contain at most 5,000 fields.")
                 path = f"{row_path}.fields[{fi}]"
-                _keys(raw, {"id", "title", "text", "description", "options", "selected", "multiple", "option_columns",
-                            "actions", "color", "copies", "types", "status"}, path)
+                _keys(raw, {"id", "title", "copies", "types", "status", "use"} | preset_keys, path)
+                if "use" in raw:
+                    name = raw["use"]
+                    if not isinstance(name, str) or name not in presets:
+                        raise ValueError(f"{path}.use must name a preset in this document.")
+                    raw = {**presets[name], **{key: value for key, value in raw.items() if key != "use"}}
                 field_id = identity(raw, path)
                 field_title = _text(raw.get("title"), path + ".title", nonempty=True)
                 actions = raw.get("actions", ["copy", "type"])
@@ -206,14 +252,23 @@ def parse_views(source: str) -> ViewFile:
                 value = _text(raw.get("text", raw.get("description", "")), path + ".text")
                 if options and value and selected:
                     raise ValueError(f"{path}: use selected options or a custom text answer, not both.")
-                default_columns = len(options) if 1 <= len(options) <= 3 and all(len(option) <= 12 for option in options) else 1
+                default_columns = len(options) if 1 <= len(options) <= 5 and all(len(option) <= 12 for option in options) else 1
+                display = raw.get("display", "all")
+                if display not in ("all", "selected"):
+                    raise ValueError(f"{path}.display must be all or selected.")
+                custom_text = raw.get("custom_text", bool(options and value))
+                if not isinstance(custom_text, bool) or (options and value and not custom_text):
+                    raise ValueError(f"{path}.custom_text must be boolean and enabled for a custom answer.")
+                tone = raw.get("tone")
+                if tone not in (None, "a", "b", "statement", "reason", "neutral"):
+                    raise ValueError(f"{path}.tone must be a, b, statement, reason, or neutral.")
                 fields.append(ViewField(field_id, field_title, value, options, tuple(selected), multiple,
-                                        _integer(raw.get("option_columns", default_columns), path + ".option_columns", 1, 4), tuple(actions),
+                                        _integer(raw.get("option_columns", default_columns), path + ".option_columns", 1, 5), tuple(actions),
                                         _color(raw.get("color"), path + ".color"),
                                         _integer(raw.get("copies", 0), path + ".copies"),
                                         _integer(raw.get("types", 0), path + ".types"),
-                                        _status(raw.get("status", "Ready"), path)))
-            rows.append(ViewRow(columns, tuple(fields)))
+                                        _status(raw.get("status", "Ready"), path), display, custom_text, tone))
+            rows.append(ViewRow(columns, tuple(fields), group_name, group_color))
         entries.append(QueueEntry(view_id, view_title, rows=tuple(rows), color=_color(raw_view.get("color"), where + ".color")))
     return ViewFile(tuple(entries), title, True)
 
@@ -261,12 +316,26 @@ def dump_views(document: ViewFile) -> str:
                         raw["actions"] = list(field.actions)
                     if field.color:
                         raw["color"] = field.color
+                    if field.display != "all":
+                        raw["display"] = field.display
+                    if field.custom_text:
+                        raw["custom_text"] = True
+                    if field.tone:
+                        raw["tone"] = field.tone
                     if field.copies or field.types or field.status != "Ready":
                         raw.update(copies=field.copies, types=field.types, status=field.status)
                     raw_row["fields"].append(raw)
                 raw_view["rows"].append(raw_row)
+            if any(row.group for row in rows):
+                groups = {}
+                for row, raw_row in zip(rows, raw_view.pop("rows"), strict=True):
+                    group = groups.setdefault(row.group or "Fields", {"rows": []})
+                    if row.group_color:
+                        group["color"] = row.group_color
+                    group["rows"].append(raw_row)
+                raw_view["groups"] = groups
             views.append(raw_view)
-        data = {"schema_version": 1, "title": document.title, "views": views}
+        data = {"schema_version": 2, "title": document.title, "views": views}
     source = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     parse_views(source)
     return source

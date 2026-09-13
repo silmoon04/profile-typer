@@ -24,7 +24,7 @@ def window():
         {"id": "repo", "title": "Repository", "rows": [{"columns": 2, "fields": [
             {"id": "task", "title": "Task ID", "text": "hello\n\n"},
             {"id": "url", "title": "URL", "text": "https://example.org", "actions": ["copy"]},
-        ]}, {"fields": [{"id": "options", "title": "Options", "options": ["One", "Two", "Three"], "selected": ["One", "Two"], "multiple": True, "option_columns": 2}]}]},
+        ]}, {"fields": [{"id": "options", "title": "Options", "options": ["One", "Two", "Three"], "selected": ["One", "Two"], "multiple": True, "option_columns": 2, "custom_text": True}]}]},
         {"id": "next", "title": "Next", "rows": [[{"title": "Reason", "text": "later"}]]},
     ]}))
     window = TyperWindow(document=document, backend=PreviewTypingBackend(speedup=50))
@@ -112,6 +112,50 @@ def test_options_toggle_and_custom_answer(window):
     assert all(not button.isChecked() for button in card.option_buttons)
     card.copy_button.click()
     assert QApplication.clipboard().text() == "custom value"
+
+
+def test_grouped_choices_compact_display_and_equal_card_heights(window):
+    from pathlib import Path
+    from profile_typer.qt_typer.field_style import choice_color
+    window.document.load(Path(__file__).parents[1] / "src/profile_typer/examples/groups.json")
+    window.refresh()
+    QApplication.processEvents()
+    QTest.qWait(100)
+    a, b = window.document.selected.rows[0].fields
+    card_a, card_b = window.view_editor.cards[a.id], window.view_editor.cards[b.id]
+    assert card_a.tone == "a" and card_b.tone == "b"
+    assert not card_a.edit_answer_button.isVisible()
+    assert card_a.option_grid.effective_columns == 5
+    assert card_a.height() == card_b.height()
+    assert choice_color(a.options, "1") != choice_color(a.options, "5")
+    window.spins["wpm"].setValue(150)
+    window.spins["delay"].setValue(3)
+    card_a.type_button.click()
+    assert window.eta_label.isVisible()
+    assert "s left" in window.eta_label.text()
+    window.stop_button.click()
+    assert not window.eta_label.isVisible()
+    window.navigate(1)
+    source = next(field for field in window.document.selected.fields if field.title == "Source")
+    card = window.view_editor.cards[source.id]
+    assert sum(row.isVisible() for row in card.option_rows) == 1
+    card.change_options.click()
+    assert all(row.isVisible() for row in card.option_rows)
+    card.option_buttons[1].click()
+    card.change_options.click()
+    card.copy_button.click()
+    assert QApplication.clipboard().text() == "Repository evidence"
+    assert sum(row.isVisible() for row in card.option_rows) == 1
+    dimension = window.view_editor.cards[window.document.selected.rows[1].fields[0].id]
+    dimension.editor.setPlainText("A much taller dimension label. " * 20)
+    QApplication.processEvents()
+    QTest.qWait(100)
+    assert dimension.height() == card.height()
+    for width in (380, 640, 900, 380):
+        window.resize(width, 500)
+        QApplication.processEvents()
+        QTest.qWait(70)
+        assert window.view_editor.horizontalScrollBar().maximum() == 0
 
 
 def test_edits_survive_navigation_and_keep_undo_cursor(window):
@@ -242,5 +286,6 @@ def test_reopening_same_ids_refreshes_layout_and_labels(window, tmp_path):
     path.write_text(json.dumps(replacement), encoding="utf-8")
     window.document.dirty = False
     window.open_json(path=path)
+    options = window.view_editor.cards["options"]
     assert options.editor.isVisible()
     assert options.editor.toPlainText() == "Custom answer"

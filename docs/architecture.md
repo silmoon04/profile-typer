@@ -7,6 +7,7 @@ The source distribution includes the author's validated aggregate typing profile
 | --- | --- |
 | `typing_document.py` | Queue identities, edits, selection, locking, and atomic JSON saves. |
 | `view_schema.py` | Validated custom views, rows, fields, options, colors, and legacy-format compatibility. |
+| `qt_typer/field_style.py` | A/B presentation hints and selected-choice colors, independent of answer values. |
 | `typing_session.py` | Permission preparation, countdown, worker lifetime, progress, cancellation, completion, and failure. |
 | `engine.py` | Shared recorded-cadence replay with interruptible waits. Accepts an input port, random generator, and clock. |
 | `profiles.py`, `data/silmoon04.json` | Bundled recording aggregates and schema validation. Missing or invalid data fails visibly instead of selecting generic timing. |
@@ -35,6 +36,22 @@ changes and reads answer values from the document. Rows constrain their column
 count using the scroll viewport width, independently of old layout minimums.
 Field action buttons have their parent assigned before visibility is set;
 startup and smoke tests reject unintended top-level show events.
+
+Named groups normalize into row metadata. The document still operates on fields
+through the same edit and run interfaces, so grouping does not change the text
+sent to a destination. Field dictionaries normalize their keys into titles, and
+presets expand before validation. Save emits self-contained fields within their
+groups. Presets never create shared mutable answers.
+
+Selected-only option display hides alternatives in the renderer. The full set
+remains in the document and can be revealed with Change. Numeric scales and A/B
+tones are presentation rules; they do not alter field values or replay settings.
+
+The session estimates remaining time from text length and configured WPM until
+progress arrives, then uses elapsed typing time and completed replay actions.
+The estimate excludes preparation and countdown. It clears on cancellation or
+failure. The engine still samples the recorded profile at all supported speeds,
+including 150 WPM.
 
 The UI and worker communicate through queued events. Workers never access Qt
 widgets. Documents remain locked until the worker exits. Successful completion

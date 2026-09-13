@@ -48,6 +48,65 @@ options, and an A/B rubric is in `src/profile_typer/examples/views.json`.
 
 ## Fields and rows
 
+### Named groups and reusable presets
+
+Use schema version 2 for groups and presets. The original title/description
+format and existing row-based view files still load.
+
+```json
+{
+  "schema_version": 2,
+  "presets": {
+    "rating": {"options": ["1", "2", "3", "4", "5"]},
+    "reason": {"tone": "reason"}
+  },
+  "views": [{
+    "title": "Dimensions",
+    "groups": {
+      "Dimension 1: Design": [
+        {"columns": 2, "fields": {
+          "A": {"use": "rating", "selected": "2"},
+          "B": {"use": "rating", "selected": "4"}
+        }},
+        {"fields": {"Rationale": {"use": "reason", "text": "Your comparison."}}}
+      ],
+      "Dimension 2: Testing": [
+        {"columns": 2, "fields": {
+          "A": {"use": "rating", "selected": "3"},
+          "B": {"use": "rating", "selected": "5"}
+        }},
+        {"fields": {"Rationale": "Your test assessment."}}
+      ]
+    }
+  }]
+}
+```
+
+Each group gets a heading and a surrounding box. The dictionary keys supply
+the names, so you can use `A`, `B`, and `Rationale` inside every group. Put as
+many groups in a view as suit your workflow; the view scrolls when needed.
+Groups are generic sections and do not depend on dimension or rubric names.
+
+`groups` can also be an array of objects with `title`, `rows`, and optional
+`color`. In the dictionary form, a group value can be a rows array or an object
+containing `rows` and `color`. A view uses either `rows` or `groups`.
+
+`fields` can be the original array of field objects or a dictionary whose keys
+are field titles. A string value is shorthand for a text field. JSON order is
+the display order. Group names must be unique within a view; field titles may
+repeat in different groups. IDs remain optional and must be unique if supplied.
+
+`presets` is a document-level dictionary. A field's `use` names a preset and
+its own properties override that preset. Presets can supply field content,
+options, selection, actions, color, tone, and display settings. They do not
+contain IDs, titles, counters, or other presets. Up to 100 presets are allowed.
+
+Save expands preset references into self-contained field objects and preserves
+the named groups. This prevents editing one answer from changing others that
+used the same preset. Keep your original compact authoring file if you want
+to reuse its presets. A complete example is in `examples/groups.json` inside
+the installed package, or `src/profile_typer/examples/groups.json` in source.
+
 | Property | Meaning | Default |
 | --- | --- | --- |
 | View `title` | The heading and queue label. | Required |
@@ -57,6 +116,9 @@ options, and an A/B rubric is in `src/profile_typer/examples/views.json`.
 | Field `title` | The field label. It is not typed by the Type button. | Required |
 | Field `text` | Editable answer or reference text. `description` is also accepted. | Empty string |
 | Field `actions` | Which buttons to show: `copy`, `type`, both, or neither. | Both |
+| Field `display` | `all` shows every option; `selected` shows chosen values with a Change action. | `all` |
+| Field `custom_text` | Allow a custom answer alongside an option list. | `false` |
+| Field `tone` | Stable tint: `a`, `b`, `statement`, `reason`, or `neutral`. | Inferred A/B pairing, otherwise neutral |
 | View or field `color` | Card highlight color on hover or focus. | Blue, or the view's color |
 | View or field `id` | Optional stable identifier. Omit it unless you need to refer to fields in another tool. | Generated |
 
@@ -64,7 +126,8 @@ Use a row with two fields for A/B values, then a one-column row for the
 comparative rationale below them. For a rubric, a useful order is statement,
 dimension/source, A/B, and evidence/reason. The JSON decides that order.
 
-Rows collapse into fewer columns when the window is narrow. Text grows to fit
+Cards in the same row have equal heights. Rows collapse into fewer columns
+when the window is narrow. Text grows to fit
 its wrapped content, and the whole view scrolls only when needed. The app does
 not add a separate scrolling box inside each text field. Type and Copy are
 near the top of each card, so a long answer does not hide its actions at the
@@ -98,15 +161,24 @@ Several selected options:
 
 The app shows checked and unchecked options, with a count for multiple choices.
 `selected` must use the exact option labels. `multiple` defaults to false, and
-Short sets of up to three labels default to one row; other sets default to one
+Short sets of up to five labels default to one row; other sets default to one
 column. Set `option_columns` explicitly to control this. A selected string or a one-item array is valid
 for a single-choice field.
 
 Copy and Type use the selected labels, one per line, in the order of `options`.
-**Custom text** lets you enter a custom value instead. A custom value
+Option fields show no Custom text control by default. Set `custom_text: true`
+to allow it. **Custom text** then lets you enter a custom value. A custom value
 clears the option selection; choosing an option again replaces the custom text.
 A custom answer can also be authored with `text` and an empty `selected` array.
 Do not provide both a nonempty custom text and selected options.
+Existing files with a custom text answer still display it, unless they explicitly
+disable custom text, which is rejected as contradictory input.
+
+For long lists such as a source category, use `"display": "selected"`. Only
+the selected labels appear until you click Change. Done collapses the list
+again. An empty selection shows all options so you can choose an answer.
+Hidden choices are retained in the file and are never included in copied or
+typed output. `option_columns` supports 1 to 5 columns.
 
 Option labels remain selectable text. You can highlight part of a label and
 copy that selection with Ctrl+C or the context menu. That copy is counted for
@@ -118,9 +190,17 @@ Use `blue`, `green`, `amber`, `red`, `purple`, `teal`, `orange`, `gray`, or a he
 color such as `#315b82`. A field color overrides its view's color. The app uses
 light backgrounds and dark text so custom highlights remain readable.
 
-If a choice has no explicit field color, YES/PASS uses green, NO/FAIL uses red,
-and PARTIAL uses amber. Other choices use the view color. Colors are visual
-only and never become part of copied or typed text.
+Selected YES/PASS options use green, NO/FAIL use red, and PARTIAL uses amber.
+Ascending numeric scales shade the selected value from red at the low end to
+green at the high end. Unselected options stay neutral.
+
+When sibling fields contain standalone A and B labels, they receive consistent
+blue and purple tints. This also works for titles such as `Trajectory A` and
+`Trajectory B`. A letter inside another word does not count. Use `tone` to
+set or override this explicitly; `neutral` disables the inferred tint.
+Use `statement` and `reason` tones to separate long rubric text by shade.
+An explicit field `color` overrides its tone. All colors are visual and never
+become part of copied or typed text.
 
 ## Counters and progress
 

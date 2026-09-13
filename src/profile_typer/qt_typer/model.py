@@ -45,7 +45,7 @@ class QueueModel(QAbstractListModel):
                 return f"{used} / {len(entry.fields)} used" if used else f"{len(entry.fields)} fields"
             return f"{entry.status} · {len(entry.description):,} characters"
         if role == self.SearchRole:
-            return "\n".join([entry.title, *(field.title for field in entry.fields)])
+            return "\n".join([entry.title, *(row.group for row in entry.rows if row.group), *(field.title for field in entry.fields)])
         if role == Qt.ItemDataRole.ToolTipRole:
             return entry.title
         return None

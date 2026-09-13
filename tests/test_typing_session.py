@@ -119,3 +119,15 @@ class TypingSessionTests(unittest.TestCase):
         self.assertEqual(self.session.phase, Phase.DONE)
         self.assertEqual(len(self.backend.calls), 2)
         self.assertEqual(self.document.selected_index, 0)
+
+    def test_remaining_time_updates_from_progress_and_clears_on_stop(self):
+        self.session.start(TypingSettings(wpm=150, delay=0, advance=False))
+        self.assertTrue(self.backend.started.wait(1))
+        self.now += 4
+        self.session.poll()
+        self.assertEqual(self.session.remaining_seconds, 4)
+        self.session.stop()
+        self.finish()
+        self.assertIsNone(self.session.remaining_seconds)
+        with self.assertRaises(ValueError):
+            TypingSettings(wpm=150.1).validate()

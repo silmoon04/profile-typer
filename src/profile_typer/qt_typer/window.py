@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import math
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelectionModel, QSettings, QSignalBlocker, QSortFilterProxyModel, Qt, QTimer
@@ -195,6 +196,11 @@ class TyperWindow(QMainWindow):
         self.progress.setTextVisible(False)
         self.progress.setMinimumWidth(20)
         controls.addWidget(self.progress, 1)
+        self.eta_label = QLabel()
+        self.eta_label.setObjectName("eyebrow")
+        self.eta_label.setMinimumWidth(0)
+        self.eta_label.setToolTip("Approximate time remaining for this field. Updates from observed progress, including pauses and corrections.")
+        controls.addWidget(self.eta_label)
         dock_layout.addLayout(controls)
         self.status_label = QLabel()
         self.status_label.setObjectName("status")
@@ -346,7 +352,7 @@ class TyperWindow(QMainWindow):
         layout.addWidget(label)
         self.spins = {}
         for name, label, low, high, step, value in (
-            ("wpm", "Speed (WPM)", 15, 120, 0.5, profile.natural_wpm),
+            ("wpm", "Speed (WPM)", 15, 150, 0.5, profile.natural_wpm),
             ("delay", "Start delay (seconds)", 0, 60, 0.5, 3),
             ("corrections", "Corrections (0–2×)", 0, 2, 0.05, 1),
             ("variation", "Variation (%)", 0, 150, 1, 100),
@@ -514,6 +520,10 @@ class TyperWindow(QMainWindow):
             application_name = "Profile Typer [preview]" if isinstance(self.backend, PreviewTypingBackend) else "Profile Typer"
             self.setWindowTitle(f"{application_name} | {filename}{' *' if self.document.dirty else ''}")
             self.progress.setValue(round(self.session.progress * 10))
+            eta = self.session.remaining_seconds
+            self.eta_label.setVisible(self.session.phase in (Phase.TYPING, Phase.COUNTDOWN) and eta is not None)
+            if eta is not None:
+                self.eta_label.setText(f"~{max(1, math.ceil(eta))}s left")
             self._refresh_status()
             self.title_edit.setToolTip(entry.title)
         finally:
@@ -667,7 +677,8 @@ class TyperWindow(QMainWindow):
         self.refresh()
 
     def _tick(self):
-        before = (self.session.phase, self.session.message, self.session.progress)
+        before = (self.session.phase, self.session.message, self.session.progress,
+                  math.ceil(self.session.remaining_seconds) if self.session.remaining_seconds is not None else None)
         self.session.poll()
         if getattr(self.backend, "minimize_for_countdown", False) and before[0] != self.session.phase:
             if self.session.phase == Phase.COUNTDOWN:
@@ -675,7 +686,8 @@ class TyperWindow(QMainWindow):
             elif not self.session.busy:
                 self.showNormal()
                 self.raise_()
-        if before != (self.session.phase, self.session.message, self.session.progress):
+        if before != (self.session.phase, self.session.message, self.session.progress,
+                      math.ceil(self.session.remaining_seconds) if self.session.remaining_seconds is not None else None):
             self.refresh()
         if self._closing_requested and not self.session.busy:
             self._closing_requested = False

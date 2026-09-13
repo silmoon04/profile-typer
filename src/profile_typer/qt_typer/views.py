@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from profile_typer.view_schema import COLORS
 from .theme import ASSETS, MUTED
+from .field_style import TONES, comparison_tones, choice_color
 
 
 @lru_cache(maxsize=2)
@@ -150,28 +151,33 @@ class ResponsiveRow(QWidget):
 
     def reflow(self, *, force=False):
         available = self.width()
+        inset = 0
         ancestor = self.parentWidget()
         while ancestor is not None:
             if isinstance(ancestor, QScrollArea):
-                available = min(available, ancestor.viewport().width() - 4)
+                available = min(available, ancestor.viewport().width() - inset)
                 break
+            if ancestor.layout() is not None:
+                margins = ancestor.layout().contentsMargins()
+                inset += margins.left() + margins.right()
             ancestor = ancestor.parentWidget()
         columns = max(1, min(self.columns, (available + 8) // (self.minimum + 8)))
         if columns == self.effective_columns and not force:
             return
         self.effective_columns = columns
-        for i in range(4):
+        for i in range(max(5, self.columns)):
             self.grid.setColumnStretch(i, 1 if i < columns else 0)
             self.grid.setColumnMinimumWidth(i, 0)
         for index, widget in enumerate(self.items):
-            self.grid.addWidget(widget, index // columns, index % columns, Qt.AlignmentFlag.AlignTop)
+            self.grid.addWidget(widget, index // columns, index % columns)
 
 
 class FieldCard(QFrame):
-    def __init__(self, field, view_color, *, edited, selected, copied, typed, cursor_visible):
+    def __init__(self, field, view_color, *, edited, selected, copied, typed, cursor_visible, tone=None):
         super().__init__()
         self.field_id = field.id
         self.view_color = view_color
+        self.tone = tone
         self._syncing = False
         self._copies = 0
         self.setObjectName("field-card")
@@ -216,14 +222,17 @@ class FieldCard(QFrame):
         self._copy_feedback.timeout.connect(lambda: self.copy_button.setText(f"Copy {self._copies}"))
         self.option_buttons = []
         self.option_labels = []
+        self.option_rows = []
         self.option_grid = None
         if field.options:
             short_options = all(len(option) <= 12 for option in field.options)
-            self.option_grid = ResponsiveRow(field.option_columns, minimum=72 if short_options else 165)
+            numeric = all(option.isdigit() for option in field.options)
+            self.option_grid = ResponsiveRow(field.option_columns, minimum=40 if numeric else 72 if short_options else 165)
             for index, option in enumerate(field.options):
                 row = QWidget()
+                row.setObjectName("choice")
                 option_layout = QHBoxLayout(row)
-                option_layout.setContentsMargins(0, 2, 0, 2)
+                option_layout.setContentsMargins(4, 3, 4, 3)
                 option_layout.setSpacing(4)
                 button = QCheckBox() if field.multiple else QRadioButton()
                 if isinstance(button, QRadioButton):
@@ -238,6 +247,7 @@ class FieldCard(QFrame):
                 option_layout.addWidget(label, 1)
                 self.option_buttons.append(button)
                 self.option_labels.append(label)
+                self.option_rows.append(row)
                 self.option_grid.add(row)
             self.selected_label = QLabel(self)
             self.selected_label.setObjectName("eyebrow")
@@ -247,6 +257,13 @@ class FieldCard(QFrame):
             self.edit_answer_button.setToolTip("Edit the answer as text instead of choosing an option.")
             self.edit_answer_button.setCheckable(True)
             self.edit_answer_button.setChecked(bool(field.text))
+            self.edit_answer_button.setVisible(field.custom_text)
+            self.change_options = QToolButton(self)
+            self.change_options.setText("Change")
+            self.change_options.setObjectName("quiet")
+            self.change_options.setCheckable(True)
+            self.change_options.setVisible(field.display == "selected")
+            self.change_options.toggled.connect(lambda _checked: self._refresh_choices())
             option_line = QHBoxLayout()
             option_line.setSpacing(8)
             if field.multiple:
@@ -255,6 +272,7 @@ class FieldCard(QFrame):
             else:
                 option_line.addWidget(self.option_grid, 1)
             option_line.addWidget(self.edit_answer_button, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            option_line.addWidget(self.change_options, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             layout.addLayout(option_line)
         self.editor = FieldTextEdit()
         self.editor.setAccessibleName(field.title)
@@ -266,7 +284,22 @@ class FieldCard(QFrame):
         if field.options:
             self.editor.setVisible(bool(field.text))
             self.edit_answer_button.toggled.connect(self.editor.setVisible)
+        layout.addStretch(1)
         self.sync(field, busy=False)
+
+    def _refresh_choices(self):
+        field = self._field
+        visible = []
+        for option, row in zip(field.options, self.option_rows, strict=True):
+            show = field.display == "all" or self.change_options.isChecked() or option in field.selected or not field.selected
+            row.setVisible(show)
+            if show:
+                visible.append(row)
+        self.option_grid.items = visible
+        for row in self.option_rows:
+            self.option_grid.grid.removeWidget(row)
+        self.option_grid.reflow(force=True)
+        self.change_options.setText("Done" if self.change_options.isChecked() else "Change")
 
     def show_copy_feedback(self):
         self.copy_button.setText(f"Copied {self._copies}")
@@ -280,6 +313,7 @@ class FieldCard(QFrame):
             self.update()
 
     def sync(self, field, *, busy):
+        self._field = field
         self._syncing = True
         try:
             if self.editor.toPlainText() != field.value:
@@ -291,10 +325,15 @@ class FieldCard(QFrame):
                 button.setChecked(option in field.selected)
                 button.setEnabled(not busy)
                 del blocker
+            for option, row in zip(field.options, self.option_rows, strict=True):
+                selected = option in field.selected
+                row.setStyleSheet(f"QWidget#choice {{ background: {choice_color(field.options, option) if selected else 'transparent'}; border: 1px solid {'#879174' if selected else 'transparent'}; border-radius: 3px; }}")
             if field.options:
                 self.selected_label.setText(f"{len(field.selected)} selected")
                 self.selected_label.setVisible(field.multiple)
                 self.edit_answer_button.setEnabled(not busy)
+                self.change_options.setEnabled(not busy)
+                self._refresh_choices()
             self.editor.setReadOnly(busy)
             self._copies = field.copies
             self.copy_button.setText(f"{'Copied' if self._copy_feedback.isActive() else 'Copy'} {field.copies}")
@@ -316,8 +355,11 @@ class FieldCard(QFrame):
                 color = {"yes": "green", "pass": "green", "no": "red", "fail": "red", "partial": "amber"}.get(field.selected[0].lower())
             accent = QColor(COLORS.get(color or self.view_color or "blue", color or self.view_color or "#2563eb"))
             wash = QColor(*(round(component * 0.09 + 255 * 0.91) for component in (accent.red(), accent.green(), accent.blue())))
+            background = TONES.get(field.tone or self.tone, "#fffef9")
+            if field.color:
+                background = wash.name()
             self.setStyleSheet(
-                "QFrame#field-card { border: 1px solid #b2b9a6; border-radius: 2px; background: #fffef9; }"
+                f"QFrame#field-card {{ border: 1px solid #b2b9a6; border-radius: 2px; background: {background}; }}"
                 f"QFrame#field-card:hover, QFrame#field-card[active=\"true\"] {{ border-color: #626b53; background: {wash.name()}; }}"
                 "QTextEdit#field-value { background: transparent; border: 0; padding: 2px 0; }")
         finally:
@@ -367,8 +409,8 @@ class ViewEditor(QScrollArea):
 
     def sync(self, entry, *, busy):
         layout_key = (entry.id, entry.color, tuple(
-            (row.columns, tuple((field.id, field.title, field.options, field.multiple,
-                                 field.option_columns, field.actions) for field in row.fields))
+            (row.columns, row.group, row.group_color, tuple((field.id, field.title, field.options, field.multiple,
+                                 field.option_columns, field.actions, field.custom_text, field.display, field.tone) for field in row.fields))
             for row in entry.rows))
         if layout_key != self.layout_key:
             if self.view_id is not None:
@@ -390,15 +432,35 @@ class ViewEditor(QScrollArea):
                 layout.setSpacing(10)
                 self.cards = {}
                 self.rows = []
+                current_group = None
+                group_layout = layout
                 for row in entry.rows:
+                    if row.group != current_group:
+                        current_group = row.group
+                        group_layout = layout
+                        if current_group is not None:
+                            box = QFrame(body)
+                            box.setObjectName("view-group")
+                            box.setAccessibleName(current_group)
+                            box.setStyleSheet("QFrame#view-group { border: 1px solid #929b84; background: #eaece1; border-radius: 3px; }")
+                            group_layout = QVBoxLayout(box)
+                            group_layout.setContentsMargins(10, 10, 10, 10)
+                            group_layout.setSpacing(8)
+                            heading = QLabel(current_group, box)
+                            heading.setTextFormat(Qt.TextFormat.PlainText)
+                            heading.setWordWrap(True)
+                            heading.setObjectName("group-title")
+                            group_layout.addWidget(heading)
+                            layout.addWidget(box)
                     row_widget = ResponsiveRow(row.columns)
+                    tones = comparison_tones(row.fields)
                     for field in row.fields:
-                        card = FieldCard(field, entry.color, edited=self._edit, selected=self._select,
-                                         copied=self.copy_field, typed=self.type_field, cursor_visible=self._show_cursor)
+                        card = FieldCard(field, row.group_color or entry.color, edited=self._edit, selected=self._select,
+                                         copied=self.copy_field, typed=self.type_field, cursor_visible=self._show_cursor, tone=tones[field.id])
                         self.cards[field.id] = card
                         row_widget.add(card)
                     self.rows.append(row_widget)
-                    layout.addWidget(row_widget)
+                    group_layout.addWidget(row_widget)
                 layout.addStretch(1)
             while len(self._cached_views) > 4:
                 oldest = next(iter(self._cached_views))

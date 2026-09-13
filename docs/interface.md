@@ -29,6 +29,12 @@ not included in the app.
 - Each card has one header row for its wrapping title and counted Copy/Type
   buttons. Short choices sit side by side. Single-choice fields omit the count
   line. Cards highlight on hover or focus and do not have colored edge strips.
+- Named groups have a shared heading and border. A/B cards use blue and purple
+  tints; statement and reason tones distinguish prose fields. Cards in a row
+  stretch to the same height. Selected rating values use a red-to-green scale,
+  and selected YES/NO choices use green/red. Labels remain visible alongside color.
+- Option fields omit Custom text unless it is enabled in the JSON. Selected-only
+  display keeps long lists compact, with Change to reveal alternatives.
 - Click an option label to choose it, or drag across its text to select and copy.
 - Save updates the open file. Save as, under More, chooses another path.
 - Add remains visible. Duplicate, reorder, and remove live under Organize.

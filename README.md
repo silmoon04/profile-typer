@@ -16,7 +16,7 @@ mode that never sends input to another application.
 
 ### Windows app
 
-Download `ProfileTyper-0.4.0-windows-x64.zip` from the
+Download `ProfileTyper-0.5.0-windows-x64.zip` from the
 [releases page](https://github.com/silmoon04/profile-typer/releases).
 Extract the whole folder and double-click **ProfileTyper.exe**. Python is
 included, and no terminal opens. Keep `_internal` beside the executable.
@@ -27,7 +27,7 @@ See [Windows setup and build instructions](docs/windows.md).
 Download the `.deb` from the [releases page](https://github.com/silmoon04/profile-typer/releases), then install it:
 
 ```sh
-sudo apt install ./profile-typer_0.4.0_all.deb
+sudo apt install ./profile-typer_0.5.0_all.deb
 profile-typer
 ```
 
@@ -40,7 +40,7 @@ RemoteDesktop permission portal.
 Install the wheel from the releases page with Python 3.11 or newer:
 
 ```sh
-python -m pip install ./profile_typer-0.4.0-py3-none-any.whl
+python -m pip install ./profile_typer-0.5.0-py3-none-any.whl
 profile-typer
 ```
 
@@ -96,6 +96,17 @@ WPM rescales the measured intervals; net WPM varies with bursts and correction
 pauses. Corrections can backtrack through a word, with measured delays before
 deleting and resuming. Set corrections to 0 to disable them explicitly.
 See [the bundled profile](docs/recorded-profile.md) for its data and behavior.
+
+The speed range is 15 to 150 WPM. The time-left label estimates completion of
+the active field. It starts from text length and the selected pace, then updates
+using elapsed time and completed replay actions, including pauses and corrections.
+It is approximate and excludes the initial countdown and permission dialog.
+
+Version 0.5 adds named groups within views and reusable field presets. Group
+several dimensions or rubrics on a page, use short field titles within each,
+and show only selected values from long option lists. See the
+[grouped example](src/profile_typer/examples/groups.json) and
+[format documentation](docs/custom-views.md).
 
 Version 0.1.0 incorrectly replaced the recorded model with generic timing and
 disabled corrections. Upgrading to 0.2.0 resets those old model defaults once,

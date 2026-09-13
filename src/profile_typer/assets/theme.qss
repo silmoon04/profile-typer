@@ -50,6 +50,7 @@ QLabel#brand { font-size: 15px; font-weight: 700; }
 QLabel#eyebrow { color: #62665c; font-size: 11px; font-weight: 600; }
 QLabel#status { color: #62665c; font-size: 11px; }
 QLabel#settings-title { font-size: 18px; font-weight: 700; padding-top: 8px; padding-bottom: 4px; }
+QLabel#group-title { font-size: 16px; font-weight: 700; padding: 2px 0 5px; }
 QWidget#control-dock { border-top: 1px solid #20231f; }
 QMenu { border: 1px solid #20231f; padding: 4px; background: #fffef9; }
 QMenu::item { padding: 7px 20px; }

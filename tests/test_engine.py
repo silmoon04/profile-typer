@@ -83,6 +83,22 @@ def test_corrections_leave_exact_text():
     assert result.corrections > 1
 
 
+def test_150_wpm_keeps_same_errors_and_rescales_recorded_timing():
+    results = []
+    for wpm in (120, 150):
+        clock = Clock()
+        port = Port()
+        result = replay("hello world, the quick brown fox.", port, TypingSettings(wpm=wpm, corrections=2),
+                        Stop(clock), lambda *_: None, clock=clock, rng=Mulberry32(42))
+        results.append((result, port))
+    slower, faster = results
+    assert slower[1].history == faster[1].history
+    assert faster[1].output == "hello world, the quick brown fox."
+    assert faster[0].corrections == slower[0].corrections
+    assert faster[0].typed_seconds < slower[0].typed_seconds
+    assert len(set(round(hold) for hold in faster[1].holds)) > 3
+
+
 def test_focus_change_stops_after_one_character():
     clock = Clock()
     port = Port()
