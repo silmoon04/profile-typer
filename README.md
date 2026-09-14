@@ -16,7 +16,7 @@ mode that never sends input to another application.
 
 ### Windows app
 
-Download `ProfileTyper-0.5.1-windows-x64.zip` from the
+Download `ProfileTyper-0.5.2-windows-x64.zip` from the
 [releases page](https://github.com/silmoon04/profile-typer/releases).
 Extract the whole folder and double-click **ProfileTyper.exe**. Python is
 included, and no terminal opens. Keep `_internal` beside the executable.
@@ -27,7 +27,7 @@ See [Windows setup and build instructions](docs/windows.md).
 Download the `.deb` from the [releases page](https://github.com/silmoon04/profile-typer/releases), then install it:
 
 ```sh
-sudo apt install ./profile-typer_0.5.1_all.deb
+sudo apt install ./profile-typer_0.5.2_all.deb
 profile-typer
 ```
 
@@ -40,7 +40,7 @@ RemoteDesktop permission portal.
 Install the wheel from the releases page with Python 3.11 or newer:
 
 ```sh
-python -m pip install ./profile_typer-0.5.1-py3-none-any.whl
+python -m pip install ./profile_typer-0.5.2-py3-none-any.whl
 profile-typer
 ```
 

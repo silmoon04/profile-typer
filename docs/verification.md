@@ -6,6 +6,10 @@ the first release. The verification results below were obtained locally.
 
 ## Verified locally
 
+- Long-choice height regression: selected and unselected radio/checkbox labels
+  fit their actual wrapped text at wide and narrow sizes, and shrink again after
+  widening the window. The packaged smoke check includes this width sequence.
+
 - Windows: Python 3.12, PySide6 6.9.1; unit and offscreen Qt tests, plus an
   installed wheel's smoke command run from outside the checkout.
 - Debian 13.6: Python 3.13.5, Debian's PySide6 6.8.2.1; the same unit and UI tests.

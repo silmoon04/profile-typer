@@ -130,6 +130,21 @@ def main(argv: list[str] | None = None) -> int:
         check("groups-rubrics", 0)
         window.resize(380, 420)
         check("groups-compact", 0)
+        long_options = ["Public repository, cloned by the Dockerfile at a pinned commit",
+                        "Both trials used the same task prompt and starting repository state"]
+        document.paste(json.dumps({"views": [{"title": "Long choices", "rows": [[{
+            "id": "long-choices", "title": "Checks", "options": long_options,
+            "selected": long_options, "multiple": True, "actions": []
+        }]]}]}))
+        window.refresh()
+        for name, width in (("choices-wide", 1440), ("choices-narrow", 380), ("choices-restored", 1440)):
+            window.resize(width, 800)
+            check(name, 0)
+            card = window.view_editor.cards["long-choices"]
+            for row, label in zip(card.option_rows, card.option_labels, strict=True):
+                assert row.height() <= row.heightForWidth(row.width()) + 2
+                if width == 1440:
+                    assert row.height() <= label.fontMetrics().height() + 16
         if args.snap:
             from profile_typer.platforms.win32_input import _user32, ensure_modifiers_released, focus_window
             window.resize(1000, 720)

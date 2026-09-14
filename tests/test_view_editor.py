@@ -114,6 +114,31 @@ def test_options_toggle_and_custom_answer(window):
     assert QApplication.clipboard().text() == "custom value"
 
 
+@pytest.mark.parametrize("multiple", [False, True])
+def test_long_choices_use_actual_wrapped_height_and_shrink_after_resize(window, multiple):
+    labels = ["Public repository, cloned by the Dockerfile at a pinned commit",
+              "Both trials used the same task prompt and starting repository state"]
+    window.document.paste(json.dumps({"views": [{"title": "Long choices", "rows": [[{
+        "id": "long-choices", "title": "Source", "options": labels,
+        "selected": [labels[0]], "multiple": multiple, "actions": []
+    }]]}]}))
+    window.refresh()
+    for width in (1440, 380, 1440):
+        window.resize(width, 800)
+        QApplication.processEvents()
+        QTest.qWait(80)
+        card = window.view_editor.cards["long-choices"]
+        for row, label, button in zip(card.option_rows, card.option_labels, card.option_buttons, strict=True):
+            if width == 1440:
+                assert row.height() <= label.fontMetrics().height() + 16, (
+                    row.height(), row.sizeHint().height(), row.heightForWidth(row.width()))
+                assert abs(button.geometry().center().y() - label.geometry().center().y()) <= 3
+            else:
+                assert row.height() >= label.heightForWidth(label.width()) + 12
+            assert row.x() + row.width() <= card.option_grid.width()
+        assert window.view_editor.horizontalScrollBar().maximum() == 0
+
+
 def test_grouped_choices_compact_display_and_equal_card_heights(window):
     from pathlib import Path
     from profile_typer.qt_typer.field_style import choice_color

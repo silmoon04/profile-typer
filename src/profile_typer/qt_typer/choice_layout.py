@@ -60,7 +60,11 @@ class ChoiceLayout(QLayout):
                 x = 0
                 y += line_height + self.spacing()
                 line_height = count = 0
-            height = max(widget.sizeHint().height(), widget.heightForWidth(item_width))
+            # A word-wrapped label's default hint assumes a narrower width.
+            # Use the height for the width we actually assign, including padding.
+            height = widget.heightForWidth(item_width)
+            if height < 0:
+                height = widget.sizeHint().height()
             if apply:
                 item.setGeometry(QRect(rect.x() + x, rect.y() + y, item_width, height))
             x += item_width + self.spacing()
